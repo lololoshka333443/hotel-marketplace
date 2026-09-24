@@ -6,6 +6,8 @@ Shutdown: close both.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -41,9 +43,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env)
 
+    from app.jobs.reaper import reaper_loop
+    from app.utils.redis import close_redis
+
+    reaper_task = asyncio.create_task(reaper_loop())
+
     yield
 
-    from app.utils.redis import close_redis
+    reaper_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await reaper_task
 
     await close_redis()
     await close_pool()
@@ -60,6 +69,7 @@ def create_app() -> FastAPI:
     )
 
     from app.modules.auth.routes import router as auth_router
+    from app.modules.booking.routes import router as booking_router
     from app.modules.inventory.routes import router as inventory_router
     from app.modules.property.routes import router as property_router
     from app.modules.property.unit_type_routes import router as unit_type_router
@@ -68,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(property_router)
     app.include_router(unit_type_router)
     app.include_router(inventory_router)
+    app.include_router(booking_router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict:
