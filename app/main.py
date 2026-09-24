@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
     from app.modules.auth.routes import router as auth_router
     from app.modules.booking.routes import router as booking_router
     from app.modules.inventory.routes import router as inventory_router
+    from app.modules.payment.routes import router as payment_router
     from app.modules.property.routes import router as property_router
     from app.modules.property.unit_type_routes import router as unit_type_router
 
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(unit_type_router)
     app.include_router(inventory_router)
     app.include_router(booking_router)
+    app.include_router(payment_router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict:

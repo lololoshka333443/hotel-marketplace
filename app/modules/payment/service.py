@@ -1,0 +1,241 @@
+"""Booking payment + confirmation.
+
+Instant book flow: a successful payment converts the hold into a confirmed
+booking in the same transaction — the held inventory becomes "sold" and the
+booking becomes visible to the partner.
+
+All inventory row locks are taken again here (FOR UPDATE, ordered) so that
+converting a hold can never race with a reaper or another guest.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+
+import asyncpg
+
+from app.db.pool import get_pool
+from app.modules.booking.service import BookingError
+from app.modules.payment.provider import PaymentResult, get_payment_provider
+from app.utils.logger import get_logger
+
+log = get_logger(__name__)
+
+
+class PaymentError(Exception):
+    pass
+
+
+class BookingNotFound(BookingError):
+    pass
+
+
+async def _row_to_out(row: asyncpg.Record, lines: list[asyncpg.Record]) -> dict:
+    return {
+        "id": row["id"],
+        "code": row["code"],
+        "status": row["status"],
+        "total_amount": float(row["total_amount"]),
+        "paid_at": row["paid_at"].isoformat() if row["paid_at"] else None,
+        "checkin_date": row["checkin_date"].isoformat(),
+        "checkout_date": row["checkout_date"].isoformat(),
+        "lines": [{"date": ln["date"].isoformat(), "price": float(ln["price"])} for ln in lines],
+    }
+
+
+async def pay_and_confirm(booking_id: str, conn: asyncpg.Connection | None = None) -> dict:
+    """Charge the guest and confirm the booking.
+
+    The provider call happens OUTSIDE the transaction (it may be slow), but the
+    inventory transition is transactional: lock rows, move hold -> sold, flip
+    status. A payment that succeeds while the booking was already cancelled is
+    refused rather than double-confirming.
+    """
+    provider = get_payment_provider()
+    pool = None
+    if conn is None:
+        pool = get_pool()
+        conn = await pool.acquire()
+    try:
+        # --- read current state (no lock yet: provider call may take time)
+        booking = await conn.fetchrow(
+            """
+            SELECT id::text, code, status, total_amount::float8, checkin_date, checkout_date,
+                   unit_type_id::text, hold_expires_at
+            FROM booking WHERE id = $1
+            """,
+            booking_id,
+        )
+        if booking is None:
+            raise BookingNotFound("booking not found")
+        if booking["status"] != "hold":
+            raise PaymentError(f"booking is not holdable (status={booking['status']})")
+        if booking["hold_expires_at"] is not None and booking["hold_expires_at"] < dt.datetime.now(
+            dt.UTC
+        ):
+            raise PaymentError("hold expired; please book again")
+
+        amount = booking["total_amount"]
+
+        # --- call the provider (stub in Phase 1)
+        result: PaymentResult = await provider.pay(booking_id, amount)
+        if result.status != "succeeded":
+            log.warning("payment-failed", booking_id=booking_id, provider=provider.name)
+            await _record_payment(
+                conn, booking_id, provider.name, amount, "failed", result.external_id
+            )
+            raise PaymentError("payment failed")
+
+        # --- confirm transactionally
+        async with conn.transaction(isolation="serializable"):
+            locked = await conn.fetch(
+                """
+                SELECT date, hold, sold FROM inventory_day
+                WHERE unit_type_id = $1 AND date >= $2 AND date < $3
+                ORDER BY date
+                FOR UPDATE
+                """,
+                booking["unit_type_id"],
+                booking["checkin_date"],
+                booking["checkout_date"],
+            )
+            for row in locked:
+                if row["hold"] < 1:
+                    raise PaymentError(
+                        f"hold vanished on {row['date']}; the booking is inconsistent"
+                    )
+
+            await conn.executemany(
+                """
+                UPDATE inventory_day
+                SET hold = GREATEST(hold - 1, 0), sold = sold + 1
+                WHERE unit_type_id = $1 AND date = $2
+                """,
+                [(booking["unit_type_id"], r["date"]) for r in locked],
+            )
+
+            row = await conn.fetchrow(
+                """
+                UPDATE booking
+                SET status = 'confirmed', paid_at = now(), hold_expires_at = NULL
+                WHERE id = $1 AND status = 'hold'
+                RETURNING id::text, code, status, total_amount::float8,
+                          paid_at, checkin_date, checkout_date
+                """,
+                booking_id,
+            )
+            if row is None:
+                raise PaymentError("booking changed state during payment")
+
+            await _record_payment(
+                conn, booking_id, provider.name, amount, "succeeded", result.external_id
+            )
+
+            lines = await conn.fetch(
+                "SELECT date, price::float8 FROM booking_line WHERE booking_id = $1 ORDER BY date",
+                booking_id,
+            )
+            log.info("booking-confirmed", booking_id=booking_id, code=row["code"])
+            return await _row_to_out(row, lines)
+    finally:
+        if pool is not None:
+            await pool.release(conn)
+
+
+def _hold_still_valid(_conn: asyncpg.Connection, _booking: asyncpg.Record) -> bool:
+    """Expiry is enforced by the route + DB; kept for future pre-auth checks."""
+    return True
+
+
+async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None) -> dict:
+    """Refund a confirmed booking: sold -> free, status -> refunded."""
+    provider = get_payment_provider()
+    pool = None
+    if conn is None:
+        pool = get_pool()
+        conn = await pool.acquire()
+    try:
+        booking = await conn.fetchrow(
+            """
+            SELECT id::text, code, status, total_amount::float8, checkin_date, checkout_date,
+                   unit_type_id::text
+            FROM booking WHERE id = $1
+            """,
+            booking_id,
+        )
+        if booking is None:
+            raise BookingNotFound("booking not found")
+        if booking["status"] not in ("confirmed", "paid"):
+            raise PaymentError(f"cannot refund booking with status={booking['status']}")
+
+        amount = booking["total_amount"]
+        result = await provider.refund(booking_id, amount)
+        if result.status != "refunded":
+            raise PaymentError("refund failed")
+
+        async with conn.transaction(isolation="serializable"):
+            locked = await conn.fetch(
+                """
+                SELECT date, sold FROM inventory_day
+                WHERE unit_type_id = $1 AND date >= $2 AND date < $3
+                ORDER BY date
+                FOR UPDATE
+                """,
+                booking["unit_type_id"],
+                booking["checkin_date"],
+                booking["checkout_date"],
+            )
+            await conn.executemany(
+                """
+                UPDATE inventory_day
+                SET sold = GREATEST(sold - 1, 0)
+                WHERE unit_type_id = $1 AND date = $2
+                """,
+                [(booking["unit_type_id"], r["date"]) for r in locked],
+            )
+            row = await conn.fetchrow(
+                """
+                UPDATE booking SET status = 'refunded' WHERE id = $1
+                RETURNING id::text, code, status, total_amount::float8,
+                          paid_at, checkin_date, checkout_date
+                """,
+                booking_id,
+            )
+            assert row is not None
+            await _record_payment(
+                conn, booking_id, provider.name, amount, "refunded", result.external_id
+            )
+            lines = await conn.fetch(
+                "SELECT date, price::float8 FROM booking_line WHERE booking_id = $1 ORDER BY date",
+                booking_id,
+            )
+            log.info("booking-refunded", booking_id=booking_id, code=row["code"])
+            return await _row_to_out(row, lines)
+    finally:
+        if pool is not None:
+            await pool.release(conn)
+
+
+async def _record_payment(
+    conn: asyncpg.Connection,
+    booking_id: str,
+    provider: str,
+    amount: float,
+    status: str,
+    external_id: str | None,
+) -> None:
+    await conn.execute(
+        """
+        INSERT INTO payment (booking_id, provider, amount, status, external_id)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT DO NOTHING
+        """,
+        booking_id,
+        provider,
+        amount,
+        status,
+        external_id,
+    )
+
+
+_ = dt

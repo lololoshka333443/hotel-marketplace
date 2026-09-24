@@ -13,6 +13,7 @@ import uuid
 import asyncpg
 import pytest
 
+from app.config.settings import settings
 from app.modules.auth import service as auth_service
 from app.modules.auth.schemas import PartnerRegisterRequest
 from app.modules.booking import service
@@ -226,60 +227,56 @@ async def test_reaper_expires_stale_hold(db_conn) -> None:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_holds_single_room(app_pool) -> None:
+async def test_concurrent_holds_single_room() -> None:
     """20 parallel requests for the same single room -> exactly one success.
 
-    This test commits its seed data (unlike the others) because the racing
-    connections must see it, then cleans up after itself.
+    Uses its own pool (committed seed) because the racing connections must all
+    see the same data; cleans everything up afterwards.
     """
-    # ---- seed (committed) — each phase on its own connection
-    async with app_pool.acquire() as setup:
-        async with setup.transaction():
+    pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=5, max_size=25)
+    try:
+        async with pool.acquire() as setup:
             ut = await _seed_unit(setup, "b8@example.com", total_units=1)
 
-    async def attempt(i: int):
-        async with app_pool.acquire() as conn:
-            try:
-                async with conn.transaction(isolation="serializable"):
-                    try:
-                        return await service.create_hold(
-                            conn,
-                            unit_type_id=ut,
-                            checkin=TODAY,
-                            checkout=TODAY + dt.timedelta(days=2),
-                            idempotency_key=f"race-{uuid.uuid4()}",
-                            guest_name=f"Гость {i}",
-                            guest_email=f"race{i}@example.com",
-                            guest_phone="+79991234567",
-                        )
-                    except NotAvailable:
-                        return None
-            except asyncpg.SerializationError:
-                # Lost the race: SERIALIZABLE aborted this transaction because
-                # another concurrent hold modified the same inventory rows.
-                return None
+        async def attempt(i: int):
+            async with pool.acquire() as conn:
+                try:
+                    async with conn.transaction(isolation="serializable"):
+                        try:
+                            return await service.create_hold(
+                                conn,
+                                unit_type_id=ut,
+                                checkin=TODAY,
+                                checkout=TODAY + dt.timedelta(days=2),
+                                idempotency_key=f"race-{uuid.uuid4()}",
+                                guest_name=f"Гость {i}",
+                                guest_email=f"race{i}@example.com",
+                                guest_phone="+79991234567",
+                            )
+                        except NotAvailable:
+                            return None
+                except asyncpg.SerializationError:
+                    # Lost the race: SERIALIZABLE aborted this transaction
+                    # because another concurrent hold touched the same rows.
+                    return None
 
-    try:
         results = await asyncio.gather(*(attempt(i) for i in range(20)))
         successes = [r for r in results if r is not None]
 
         assert len(successes) == 1, f"expected exactly 1 success, got {len(successes)}"
 
-        async with app_pool.acquire() as check:
-            async with check.transaction():
-                holds = await check.fetchval(
-                    "SELECT count(*) FROM booking WHERE unit_type_id = $1 AND status = 'hold'",
-                    ut,
-                )
-                assert holds == 1
+        async with pool.acquire() as check:
+            holds = await check.fetchval(
+                "SELECT count(*) FROM booking WHERE unit_type_id = $1 AND status = 'hold'",
+                ut,
+            )
+            assert holds == 1
     finally:
-        async with app_pool.acquire() as cleanup:
-            async with cleanup.transaction():
-                await cleanup.execute(
-                    "DELETE FROM booking_line USING booking "
-                    "WHERE booking_line.booking_id = booking.id AND booking.unit_type_id = $1",
-                    ut,
-                )
-                await cleanup.execute("DELETE FROM booking WHERE unit_type_id = $1", ut)
-                await cleanup.execute("DELETE FROM inventory_day WHERE unit_type_id = $1", ut)
-                await cleanup.execute("DELETE FROM unit_type WHERE id = $1", ut)
+        async with pool.acquire() as cleanup:
+            await cleanup.execute("DELETE FROM booking_line")
+            await cleanup.execute("DELETE FROM booking")
+            await cleanup.execute("DELETE FROM inventory_day")
+            await cleanup.execute("DELETE FROM unit_type")
+            await cleanup.execute("DELETE FROM property")
+            await cleanup.execute("DELETE FROM partner")
+        await pool.close()

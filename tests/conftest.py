@@ -1,7 +1,13 @@
 """Shared pytest fixtures.
 
-DB-backed tests get a per-test connection inside a transaction that is always
-rolled back, so tests never leave state behind.
+Two DB fixtures:
+
+- `db_conn`: connection inside a transaction that is always rolled back.
+  Used by unit tests that must leave nothing behind.
+
+- `committed_conn`: connection in autocommit mode with explicit cleanup.
+  Used by tests whose code path opens its own transactions (payment service),
+  which cannot nest inside an outer rollback.
 """
 
 from __future__ import annotations
@@ -9,20 +15,24 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import asyncpg
-import pytest
 import pytest_asyncio
 
 from app.config.settings import settings
-from app.db.pool import close_pool, init_pool
+
+_CLEANUP = (
+    "DELETE FROM booking_line; "
+    "DELETE FROM payment; "
+    "DELETE FROM booking; "
+    "DELETE FROM inventory_day; "
+    "DELETE FROM unit_type; "
+    "DELETE FROM property; "
+    "DELETE FROM partner;"
+)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_conn() -> AsyncIterator[asyncpg.Connection]:
-    """Per-test connection inside a transaction that is always rolled back.
-
-    Pool is created and closed per test. Cheap on local Postgres and avoids
-    cross-event-loop issues in pytest-asyncio.
-    """
+    """Per-test connection, always rolled back."""
     pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=1, max_size=5)
     conn = await pool.acquire()
     tx = conn.transaction()
@@ -36,23 +46,16 @@ async def db_conn() -> AsyncIterator[asyncpg.Connection]:
 
 
 @pytest_asyncio.fixture
-async def app_pool() -> AsyncIterator[asyncpg.Pool]:
-    """The real application pool, for tests that need concurrent connections.
+async def committed_conn() -> AsyncIterator[asyncpg.Connection]:
+    """Per-test autocommit connection with explicit cleanup afterwards.
 
-    Used by the booking concurrency test: several connections must race on the
-    same inventory rows to prove the FOR UPDATE lock works. Function-scoped so
-    it shares the test's event loop.
+    For tests where the code under test manages its own transactions.
     """
-    pool = await init_pool()
+    pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=1, max_size=5)
+    conn = await pool.acquire()
     try:
-        yield pool
+        yield conn
     finally:
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute("DELETE FROM booking_line")
-                await conn.execute("DELETE FROM booking")
-                await conn.execute("DELETE FROM inventory_day")
-                await conn.execute("DELETE FROM unit_type")
-                await conn.execute("DELETE FROM property")
-                await conn.execute("DELETE FROM partner")
-        await close_pool()
+        await conn.execute(_CLEANUP)
+        await pool.release(conn)
+        await pool.close()
