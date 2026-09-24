@@ -44,7 +44,7 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B", "ASYNC", "RUF"]
-ignore = ["E501", "RUF001", "RUF002", "RUF003", "RUF005"]  # длинные строки и кириллица в комментах
+ignore = ["E501", "RUF001", "RUF002", "RUF003", "RUF005", "B008"]  # длинные строки, кириллица, FastAPI Query() в комментах
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
