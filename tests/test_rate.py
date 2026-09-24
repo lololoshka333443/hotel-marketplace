@@ -1,0 +1,196 @@
+"""Slice 5 tests: rate plans, prices and the partner calendar grid."""
+
+from __future__ import annotations
+
+import datetime as dt
+import uuid
+
+import asyncpg
+import pytest
+
+from app.modules.auth import service as auth_service
+from app.modules.auth.schemas import PartnerRegisterRequest
+from app.modules.property import service as property_service
+from app.modules.property.schemas import PropertyCreate
+from app.modules.rate import calendar, service
+
+TODAY = dt.date.today()
+
+
+async def _seed(conn: asyncpg.Connection, email: str, base_price: float = 3000) -> dict:
+    """Partner + property + unit_type + inventory. Returns ids."""
+    partner_id = await auth_service.register_partner(
+        conn, PartnerRegisterRequest(email=email, password="secret123", name="Tester")
+    )
+    prop = await property_service.create_property(
+        conn,
+        partner_id,
+        PropertyCreate(
+            name="Test", property_type="apartment", city="Yalta", timezone="Europe/Simferopol"
+        ),
+    )
+    row = await conn.fetchrow(
+        "INSERT INTO unit_type (property_id, name, capacity, total_units, base_price) "
+        "VALUES ($1, 'Квартира', 2, 1, $2) RETURNING id::text",
+        prop.id,
+        base_price,
+    )
+    assert row is not None
+    await conn.execute(
+        "INSERT INTO inventory_day (unit_type_id, date, available) "
+        "SELECT $1, d.date, 1 FROM generate_series($2::date, ($2::date + 29)::date, '1 day') AS d(date)",
+        row["id"],
+        TODAY,
+    )
+    return {"unit_type_id": row["id"], "partner_id": str(partner_id), "property_id": prop.id}
+
+
+# ---------------------------------------------------------------- rate plans
+
+
+@pytest.mark.asyncio
+async def test_create_and_list_rate_plan(db_conn) -> None:
+    seed = await _seed(db_conn, "r1@example.com")
+    rp = await service.create_rate_plan(db_conn, seed["unit_type_id"], "Гибкий")
+
+    assert rp["name"] == "Гибкий"
+    assert rp["active"] is True
+
+    plans = await service.list_rate_plans(db_conn, seed["unit_type_id"])
+    assert len(plans) == 1
+
+
+# ---------------------------------------------------------------- prices
+
+
+@pytest.mark.asyncio
+async def test_set_prices_over_range(db_conn) -> None:
+    seed = await _seed(db_conn, "r2@example.com")
+    rp = await service.create_rate_plan(db_conn, seed["unit_type_id"], "Сезон")
+
+    await service.set_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=5), price=5000)
+
+    prices = await service.get_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=5))
+    assert len(prices) == 5
+    assert all(p["price"] == 5000 for p in prices)
+
+
+@pytest.mark.asyncio
+async def test_price_falls_back_to_base(db_conn) -> None:
+    """Without explicit price rows, the unit's base price applies."""
+    seed = await _seed(db_conn, "r3@example.com", base_price=2500)
+    rp = await service.create_rate_plan(db_conn, seed["unit_type_id"], "База")
+
+    prices = await service.get_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=3))
+    assert len(prices) == 3
+    assert all(p["price"] == 2500 for p in prices)
+
+
+@pytest.mark.asyncio
+async def test_set_prices_overwrites_existing(db_conn) -> None:
+    seed = await _seed(db_conn, "r4@example.com")
+    rp = await service.create_rate_plan(db_conn, seed["unit_type_id"], "Сезон")
+
+    await service.set_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=3), price=5000)
+    await service.set_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=3), price=7000)
+
+    prices = await service.get_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=3))
+    assert all(p["price"] == 7000 for p in prices)
+
+
+@pytest.mark.asyncio
+async def test_set_prices_rejects_bad_range(db_conn) -> None:
+    seed = await _seed(db_conn, "r5@example.com")
+    rp = await service.create_rate_plan(db_conn, seed["unit_type_id"], "Сезон")
+
+    with pytest.raises(ValueError):
+        await service.set_prices(db_conn, rp["id"], TODAY, TODAY, price=1000)
+    with pytest.raises(ValueError):
+        await service.set_prices(db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=2), price=-100)
+
+
+# ---------------------------------------------------------------- calendar
+
+
+@pytest.mark.asyncio
+async def test_calendar_shape_and_free(db_conn) -> None:
+    seed = await _seed(db_conn, "r6@example.com")
+    grid = await calendar.get_calendar(
+        db_conn, seed["partner_id"], TODAY, TODAY + dt.timedelta(days=4)
+    )
+
+    assert grid["date_from"] == TODAY.isoformat()
+    assert len(grid["units"]) == 1
+
+    unit = grid["units"][0]
+    assert unit["unit_type_id"] == seed["unit_type_id"]
+    assert unit["total_units"] == 1
+    assert len(unit["days"]) == 4
+
+    day = unit["days"][0]
+    assert set(day.keys()) == {
+        "date",
+        "available",
+        "hold",
+        "sold",
+        "free",
+        "closed",
+        "price",
+        "min_stay",
+    }
+    assert day["free"] == 1
+    assert day["closed"] is False
+    assert day["price"] == 3000
+
+
+@pytest.mark.asyncio
+async def test_calendar_reflects_hold(db_conn) -> None:
+    """A held night shows hold=1, free=0."""
+    from app.modules.booking import service as booking_service
+
+    seed = await _seed(db_conn, "r7@example.com")
+    await booking_service.create_hold(
+        db_conn,
+        unit_type_id=seed["unit_type_id"],
+        checkin=TODAY,
+        checkout=TODAY + dt.timedelta(days=2),
+        guest_name="Иван",
+        guest_email=f"g{uuid.uuid4().hex[:6]}@example.com",
+        guest_phone="+79991234567",
+        idempotency_key=f"k-{uuid.uuid4()}",
+    )
+
+    grid = await calendar.get_calendar(
+        db_conn, seed["partner_id"], TODAY, TODAY + dt.timedelta(days=4)
+    )
+    days = grid["units"][0]["days"]
+
+    assert days[0]["hold"] == 1 and days[0]["free"] == 0
+    assert days[1]["hold"] == 1 and days[1]["free"] == 0
+    assert days[2]["hold"] == 0 and days[2]["free"] == 1
+
+
+@pytest.mark.asyncio
+async def test_calendar_respects_partner_scope(db_conn) -> None:
+    """A partner must not see another partner's units in the grid."""
+    seed_a = await _seed(db_conn, "a@r8.example.com")
+    seed_b = await _seed(db_conn, "b@r8.example.com")
+
+    grid_a = await calendar.get_calendar(
+        db_conn, seed_a["partner_id"], TODAY, TODAY + dt.timedelta(days=2)
+    )
+    grid_b = await calendar.get_calendar(
+        db_conn, seed_b["partner_id"], TODAY, TODAY + dt.timedelta(days=2)
+    )
+
+    assert [u["unit_type_id"] for u in grid_a["units"]] == [seed_a["unit_type_id"]]
+    assert [u["unit_type_id"] for u in grid_b["units"]] == [seed_b["unit_type_id"]]
+
+
+@pytest.mark.asyncio
+async def test_calendar_rejects_long_range(db_conn) -> None:
+    seed = await _seed(db_conn, "r9@example.com")
+    with pytest.raises(ValueError, match="92"):
+        await calendar.get_calendar(
+            db_conn, seed["partner_id"], TODAY, TODAY + dt.timedelta(days=200)
+        )
