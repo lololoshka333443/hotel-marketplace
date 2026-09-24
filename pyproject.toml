@@ -1,0 +1,57 @@
+[project]
+name = "hotel-marketplace"
+version = "0.1.0"
+description = "B2B2C marketplace for accommodation bookings — booking core"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "asyncpg>=0.30",
+    "psycopg[binary]>=3.2",
+    "redis[hiredis]>=5.2",
+    "pydantic[email]>=2.10",
+    "pydantic-settings>=2.6",
+    "pyjwt>=2.10",
+    "httpx>=0.28",
+    "python-dotenv>=1.0",
+    "sentry-sdk>=2.19",
+    "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+bot = ["aiogram>=3.15"]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "httpx>=0.28",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "httpx>=0.28",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "ASYNC", "RUF"]
+ignore = ["E501", "RUF003", "RUF002"]  # длинные строки и кириллица в комментах
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true

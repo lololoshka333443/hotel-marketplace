@@ -1,0 +1,110 @@
+"""FastAPI application factory.
+
+Startup: connect DB pool + Redis, run migrations.
+Shutdown: close both.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from app.config.settings import settings
+from app.db.migrate import run_migrations
+from app.db.pool import close_pool, init_pool
+from app.utils.logger import configure_logging, get_logger
+
+log = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging()
+    log.info("startup", env=settings.app_env, port=settings.app_port)
+
+    pool = await init_pool()
+    log.info("db-pool-ready", size=pool.get_size())
+
+    from app.utils.redis import init_redis
+
+    redis_client = await init_redis()
+    redis_version = (await redis_client.info("server"))["redis_version"]
+    log.info("redis-ready", version=redis_version)
+
+    applied = await run_migrations()
+    log.info("migrations-applied", versions=applied)
+
+    if settings.sentry_dsn:
+        import sentry_sdk
+
+        sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env)
+
+    yield
+
+    from app.utils.redis import close_redis
+
+    await close_redis()
+    await close_pool()
+    log.info("shutdown")
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Hotel Marketplace API",
+        version="0.1.0",
+        description="B2B2C accommodation marketplace — booking core",
+        docs_url="/docs",
+        lifespan=lifespan,
+    )
+
+    from app.modules.auth.routes import router as auth_router
+
+    app.include_router(auth_router)
+
+    @app.get("/healthz", tags=["health"])
+    async def healthz() -> dict:
+        """Liveness probe — no DB access, must always answer 200 fast."""
+        return {"status": "ok"}
+
+    @app.get("/readyz", tags=["health"])
+    async def readyz() -> dict:
+        """Readiness probe — checks DB + Redis are reachable."""
+        from app.db.pool import get_pool
+        from app.utils.redis import get_redis
+
+        checks: dict = {}
+        try:
+            pool = get_pool()
+            await pool.execute("SELECT 1")
+            checks["db"] = "ok"
+        except Exception as exc:
+            checks["db"] = f"error: {exc}"
+
+        try:
+            redis = get_redis()
+            await redis.ping()
+            checks["redis"] = "ok"
+        except Exception as exc:
+            checks["redis"] = f"error: {exc}"
+
+        ok = all(v == "ok" for v in checks.values())
+        return {"status": "ok" if ok else "degraded", "checks": checks}
+
+    return app
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=settings.app_host,
+        port=settings.app_port,
+        reload=settings.is_dev,
+        log_level=settings.log_level,
+    )
