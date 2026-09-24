@@ -68,6 +68,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    from app.modules.admin.routes import router as admin_router
     from app.modules.auth.routes import router as auth_router
     from app.modules.booking.routes import router as booking_router
     from app.modules.inventory.routes import router as inventory_router
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(booking_router)
     app.include_router(payment_router)
     app.include_router(rate_router)
+    app.include_router(admin_router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict:

@@ -14,6 +14,7 @@ import datetime as dt
 
 import asyncpg
 
+from app.config import legal
 from app.db.pool import get_pool
 from app.modules.booking.service import BookingError
 from app.modules.payment.provider import PaymentResult, get_payment_provider
@@ -117,10 +118,14 @@ async def pay_and_confirm(booking_id: str, conn: asyncpg.Connection | None = Non
             row = await conn.fetchrow(
                 """
                 UPDATE booking
-                SET status = 'confirmed', paid_at = now(), hold_expires_at = NULL
+                SET status = 'confirmed',
+                    paid_at = now(),
+                    hold_expires_at = NULL,
+                    commission_status = 'accrued'
                 WHERE id = $1 AND status = 'hold'
                 RETURNING id::text, code, status, total_amount::float8,
-                          paid_at, checkin_date, checkout_date
+                          paid_at, checkin_date, checkout_date,
+                          commission_amt::float8, property_id::text
                 """,
                 booking_id,
             )
@@ -136,6 +141,24 @@ async def pay_and_confirm(booking_id: str, conn: asyncpg.Connection | None = Non
                 booking_id,
             )
             log.info("booking-confirmed", booking_id=booking_id, code=row["code"])
+
+            from app.modules.notification import service as notification_service
+
+            try:
+                partner_id = await conn.fetchval(
+                    "SELECT partner_id::text FROM property WHERE id = $1", row["property_id"]
+                )
+                guest = await conn.fetchrow(
+                    "SELECT guest_name, guest_email FROM booking WHERE id = $1", booking_id
+                )
+                payload = dict(row)
+                payload["partner_id"] = partner_id
+                payload["guest_name"] = guest["guest_name"]
+                payload["guest_email"] = guest["guest_email"]
+                await notification_service.notify_booking_confirmed(conn, payload)
+            except Exception as exc:
+                log.warning("notify-failed", booking_id=booking_id, error=str(exc))
+
             return await _row_to_out(row, lines)
     finally:
         if pool is not None:
@@ -148,7 +171,12 @@ def _hold_still_valid(_conn: asyncpg.Connection, _booking: asyncpg.Record) -> bo
 
 
 async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None) -> dict:
-    """Refund a confirmed booking: sold -> free, status -> refunded."""
+    """Refund a confirmed booking: sold -> free, status -> refunded.
+
+    Cancellation rule: free if cancelled before 24:00 of the day before
+    check-in. Later, the penalty applies (see app.config.legal). This function
+    records the deadline it used so reports can be verified.
+    """
     provider = get_payment_provider()
     pool = None
     if conn is None:
@@ -167,6 +195,12 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
             raise BookingNotFound("booking not found")
         if booking["status"] not in ("confirmed", "paid"):
             raise PaymentError(f"cannot refund booking with status={booking['status']}")
+
+        deadline = booking["checkin_date"] - dt.timedelta(
+            hours=legal.CANCELLATION_FREE_BEFORE_HOURS
+        )
+        # checkin_date is a date; the free window ends at that date boundary.
+        is_free = dt.date.today() <= deadline
 
         amount = booking["total_amount"]
         result = await provider.refund(booking_id, amount)
@@ -195,7 +229,9 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
             )
             row = await conn.fetchrow(
                 """
-                UPDATE booking SET status = 'refunded' WHERE id = $1
+                UPDATE booking
+                SET status = 'refunded', cancelled_at = now(), commission_status = 'void'
+                WHERE id = $1
                 RETURNING id::text, code, status, total_amount::float8,
                           paid_at, checkin_date, checkout_date
                 """,
@@ -209,8 +245,16 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
                 "SELECT date, price::float8 FROM booking_line WHERE booking_id = $1 ORDER BY date",
                 booking_id,
             )
-            log.info("booking-refunded", booking_id=booking_id, code=row["code"])
-            return await _row_to_out(row, lines)
+            log.info(
+                "booking-refunded",
+                booking_id=booking_id,
+                code=row["code"],
+                free_cancelled=is_free,
+                deadline=deadline.isoformat(),
+            )
+            out = await _row_to_out(row, lines)
+            out["free_cancelled"] = is_free
+            return out
     finally:
         if pool is not None:
             await pool.release(conn)
