@@ -54,6 +54,8 @@ export interface PropertyPublic {
   lat: number | null;
   lng: number | null;
   address: Address;
+  /** Photo URLs — the largest first. Empty until photos land on the backend. */
+  photos?: string[];
 }
 
 export interface PropertyOut extends PropertyPublic {

@@ -127,7 +127,7 @@ async def get_public_property(conn: asyncpg.Connection, property_id: str) -> dic
         """
         SELECT id::text, name, slug, property_type, city, timezone,
                checkin_time, checkout_time, currency,
-               lat::float8, lng::float8, address::jsonb
+               lat::float8, lng::float8, address::jsonb, photos::jsonb
         FROM property
         WHERE id = $1 AND status = 'published'
         """,
@@ -135,7 +135,7 @@ async def get_public_property(conn: asyncpg.Connection, property_id: str) -> dic
     )
     if row is None:
         return None
-    return dict(row, address=_jsonb(row["address"]))
+    return dict(row, address=_jsonb(row["address"]), photos=_jsonb(row["photos"]))
 
 
 async def list_public_properties(conn: asyncpg.Connection, city: str | None = None) -> list[dict]:
@@ -148,14 +148,14 @@ async def list_public_properties(conn: asyncpg.Connection, city: str | None = No
         f"""
         SELECT id::text, name, slug, property_type, city, timezone,
                checkin_time, checkout_time, currency,
-               lat::float8, lng::float8, address::jsonb
+               lat::float8, lng::float8, address::jsonb, photos::jsonb
         FROM property
         WHERE {where}
         ORDER BY created_at DESC
         """,
         *args,
     )
-    return [dict(r, address=_jsonb(r["address"])) for r in rows]
+    return [dict(r, address=_jsonb(r["address"]), photos=_jsonb(r["photos"])) for r in rows]
 
 
 async def update_property(
