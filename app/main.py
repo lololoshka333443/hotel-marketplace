@@ -86,6 +86,22 @@ def create_app() -> FastAPI:
     app.include_router(rate_router)
     app.include_router(admin_router)
 
+    # ---- single-app: serve the built frontend from one origin -------------
+    # Static assets first (exact paths), then the SPA fallback so any deep
+    # link (/search, /property/abc) lands on index.html for React Router.
+    # Mounted LAST so it can never shadow API routes (/v1/*, /healthz, …).
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    static_dir = settings.project_root / "web" / "dist"
+
+    if static_dir.is_dir():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=static_dir / "assets"),
+            name="assets",
+        )
+
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict:
         """Liveness probe — no DB access, must always answer 200 fast."""
@@ -114,6 +130,15 @@ def create_app() -> FastAPI:
 
         ok = all(v == "ok" for v in checks.values())
         return {"status": "ok" if ok else "degraded", "checks": checks}
+
+    # SPA fallback — registered LAST, so it can never shadow the API.
+    if static_dir.is_dir():
+        index_html = static_dir / "index.html"
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str) -> FileResponse:
+            """Any unknown path serves index.html — client-side routing."""
+            return FileResponse(index_html)
 
     return app
 

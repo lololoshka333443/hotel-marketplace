@@ -53,6 +53,10 @@ class Settings(BaseSettings):
         return self.app_env in ("local", "dev", "test")
 
     @property
+    def project_root(self) -> Path:
+        return PROJECT_ROOT
+
+    @property
     def test_dsn(self) -> str:
         """asyncpg connection string (no +scheme, plain postgresql://)."""
         return self.database_url
