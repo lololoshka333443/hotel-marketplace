@@ -13,7 +13,9 @@ import type {
   CalendarResponse,
   HoldConflict,
   HoldRequest,
+  PropertyOut,
   PropertyPublic,
+  PropertyType,
   TokenResponse,
   UnitTypeOut,
 } from "./types";
@@ -145,7 +147,13 @@ export const bookings = {
 // ---- partner --------------------------------------------------------------
 
 export const partner = {
-  listProperties: () => request<unknown[]>("/partner/properties"),
+  listProperties: () => request<PropertyOut[]>("/partner/properties"),
+  createProperty: (body: {
+    name: string;
+    property_type: PropertyType;
+    city?: string;
+  }) =>
+    request<PropertyOut>("/partner/properties", { method: "POST", body }),
   listUnitTypes: (propertyId: string) =>
     request<UnitTypeOut[]>(`/partner/unit-types/property/${propertyId}`),
   calendar: (propertyId: string, dateFrom: string, dateTo: string) =>
