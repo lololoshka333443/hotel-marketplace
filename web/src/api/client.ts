@@ -10,6 +10,7 @@ import type {
   AuthMe,
   AvailabilityResponse,
   BookingOut,
+  CalendarResponse,
   HoldConflict,
   HoldRequest,
   PropertyPublic,
@@ -148,7 +149,7 @@ export const partner = {
   listUnitTypes: (propertyId: string) =>
     request<UnitTypeOut[]>(`/partner/unit-types/property/${propertyId}`),
   calendar: (propertyId: string, dateFrom: string, dateTo: string) =>
-    request<unknown>(
+    request<CalendarResponse>(
       `/partner/calendar?property_id=${encodeURIComponent(
         propertyId,
       )}&date_from=${toIsoDate(dateFrom)}&date_to=${toIsoDate(dateTo)}`,

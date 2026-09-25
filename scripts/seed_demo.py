@@ -22,7 +22,7 @@ from app.utils.logger import get_logger  # noqa: E402
 
 log = get_logger(__name__)
 
-PARTNER_EMAIL = "demo@hotel-marketplace.local"
+PARTNER_EMAIL = "demo@example.com"
 PARTNER_PASSWORD = "demo-password"
 
 # Room photos (optimized WebP). Used as examples of what a partner uploads.
@@ -66,9 +66,21 @@ async def main() -> int:
                 ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
                 RETURNING id::text
                 """,
-                PARTNER_EMAIL,
-                # Same placeholder hash as auth/service.py — demo only.
-                __import__("hashlib").sha256(PARTNER_PASSWORD.encode()).hexdigest(),
+                "demo@example.com",
+                # Same placeholder hash as auth/service.py - demo only.
+                __import__("hashlib").sha256(b"demo-password").hexdigest(),
+            )
+
+            # Reassign any objects from a superseded demo partner so a re-seed
+            # never leaves orphan properties the current token cannot see.
+            await conn.execute(
+                """
+                UPDATE property SET partner_id = $1
+                 WHERE partner_id IN (
+                     SELECT id FROM partner WHERE email <> 'demo@example.com'
+                 )
+                """,
+                partner_id,
             )
 
             for property_def in PROPERTIES:

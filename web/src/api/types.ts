@@ -109,6 +109,34 @@ export interface AvailabilityDay {
   closed: boolean;
 }
 
+/** One cell of the partner chessboard. */
+export interface CalendarDay {
+  date: string;
+  available: number;
+  hold: number;
+  sold: number;
+  free: number;
+  closed: boolean;
+  price: number;
+  min_stay: number;
+}
+
+export interface CalendarUnit {
+  unit_type_id: string;
+  unit_type_name: string;
+  property_id: string;
+  property_name: string;
+  total_units: number;
+  rate_plan_id: string | null;
+  days: CalendarDay[];
+}
+
+export interface CalendarResponse {
+  date_from: string;
+  date_to: string;
+  units: CalendarUnit[];
+}
+
 export interface AvailabilityResponse {
   unit_type_id: string;
   date_from: string;
