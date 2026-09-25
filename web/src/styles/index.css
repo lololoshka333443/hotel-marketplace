@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+/* Map the ONE shared token theme into Tailwind v4's theme layer.
+ * Components consume semantic utilities (bg-action-primary, text-text-primary…)
+ * or the CSS vars directly. Never a raw Tailwind palette color. */
+@theme {
+  /* colors */
+  --color-surface-page: var(--color-surface-page);
+  --color-surface-card: var(--color-surface-card);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-sunken: var(--color-surface-sunken);
+  --color-surface-disabled: var(--color-surface-disabled);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-disabled: var(--color-text-disabled);
+  --color-text-on-action: var(--color-text-on-action);
+  --color-text-link: var(--color-text-link);
+  --color-text-link-hover: var(--color-text-link-hover);
+
+  --color-action-primary: var(--color-action-primary);
+  --color-action-primary-hover: var(--color-action-primary-hover);
+  --color-action-primary-active: var(--color-action-primary-active);
+  --color-action-secondary: var(--color-action-secondary);
+  --color-action-secondary-hover: var(--color-action-secondary-hover);
+  --color-action-destructive: var(--color-action-destructive);
+  --color-action-destructive-hover: var(--color-action-destructive-hover);
+
+  --color-border-default: var(--color-border-default);
+  --color-border-strong: var(--color-border-strong);
+  --color-border-focus: var(--color-border-focus);
+  --color-border-error: var(--color-border-error);
+
+  --color-feedback-success-bg: var(--color-feedback-success-bg);
+  --color-feedback-success-text: var(--color-feedback-success-text);
+  --color-feedback-warning-bg: var(--color-feedback-warning-bg);
+  --color-feedback-warning-text: var(--color-feedback-warning-text);
+  --color-feedback-error-bg: var(--color-feedback-error-bg);
+  --color-feedback-error-text: var(--color-feedback-error-text);
+  --color-feedback-info-bg: var(--color-feedback-info-bg);
+  --color-feedback-info-text: var(--color-feedback-info-text);
+
+  /* typography */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-base: var(--text-base);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+  --text-3xl: var(--text-3xl);
+  --text-4xl: var(--text-4xl);
+  --text-5xl: var(--text-5xl);
+  --text-6xl: var(--text-6xl);
+
+  /* spacing scale (extends Tailwind's default) */
+  --spacing: 0.25rem;
+
+  /* radius */
+  --radius-sm: var(--radius-sm);
+  --radius-button: var(--radius-button);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* focus ring + motion */
+  --shadow-focus-ring: var(--shadow-focus-ring);
+  --transition-micro: var(--transition-micro);
+}
+
+/* reduced-motion is honored at the token layer (theme.css) and here too. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background-color: var(--color-surface-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* visible focus everywhere — 3:1 ring from tokens */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
