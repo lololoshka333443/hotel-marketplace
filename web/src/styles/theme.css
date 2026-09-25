@@ -161,6 +161,56 @@
   --t-shadow-focus-ring: 0 0 0 2px #16171a, 0 0 0 4px #638fd0;
 }
 
+/* OS dark mode. `data-theme` (above) is the explicit switch and wins when set;
+ * without it we follow prefers-color-scheme, so a phone in dark mode gets the
+ * dark theme with no JS in the critical path. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --t-surface-page: #16171a;
+    --t-surface-card: #2b2d30;
+    --t-surface-raised: #404246;
+    --t-surface-sunken: #000000;
+
+    --t-text-primary: #f4f7fb;
+    --t-text-secondary: #a9abaf;
+    --t-text-tertiary: #8b8e91;
+    --t-text-disabled: #717377;
+    --t-text-on-action: #ffffff;
+    --t-text-link: #7facf0;
+    --t-text-link-hover: #a3c8fe;
+
+    --t-action-primary: #4973b3;
+    --t-action-primary-hover: #2f5996;
+    --t-action-secondary: #404246;
+    --t-action-secondary-hover: #57595d;
+    --t-action-destructive: #b74c44;
+    --t-action-destructive-hover: #98302b;
+
+    --t-border-default: #404246;
+    --t-border-strong: #8b8e91;
+    --t-border-focus: #638fd0;
+    --t-border-error: #d5685e;
+
+    --t-feedback-success-bg: #003715;
+    --t-feedback-success-text: #96d8a3;
+    --t-feedback-warning-bg: #3e2701;
+    --t-feedback-warning-text: #f3ba67;
+    --t-feedback-error-bg: #5a0004;
+    --t-feedback-error-text: #f6857a;
+    --t-feedback-info-bg: #012960;
+    --t-feedback-info-text: #a3c8fe;
+
+    --t-interactive-hover: rgba(255, 255, 255, 0.06);
+    --t-interactive-active: rgba(255, 255, 255, 0.10);
+    --t-interactive-selected-bg: #012960;
+    --t-interactive-selected-border: #2f5996;
+    --t-scrim: rgba(0, 0, 0, 0.7);
+    --t-shadow-focus-ring: 0 0 0 2px #16171a, 0 0 0 4px #638fd0;
+
+    color-scheme: dark;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root { --t-transition-micro: 0ms; }
 }
