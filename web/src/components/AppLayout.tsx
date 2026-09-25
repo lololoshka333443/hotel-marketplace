@@ -14,13 +14,13 @@ export function AppLayout() {
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
             <Link
               to="/search"
-              className="rounded-radius-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
+              className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
             >
               Номера
             </Link>
             <Link
               to="/partner"
-              className="rounded-radius-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
+              className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
             >
               Партнёру
             </Link>

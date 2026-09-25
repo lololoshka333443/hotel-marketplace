@@ -40,7 +40,7 @@ export interface Address {
   [key: string]: string | undefined;
 }
 
-/** Public catalog item — GET /v1/properties. */
+/** Public catalog item - GET /v1/properties. */
 export interface PropertyPublic {
   id: string;
   name: string;
@@ -54,7 +54,7 @@ export interface PropertyPublic {
   lat: number | null;
   lng: number | null;
   address: Address;
-  /** Photo URLs — the largest first. Empty until photos land on the backend. */
+  /** Photo URLs - the largest first. Empty until photos land on the backend. */
   photos?: string[];
 }
 

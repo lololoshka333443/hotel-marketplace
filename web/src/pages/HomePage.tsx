@@ -32,7 +32,7 @@ export function HomePage() {
             </p>
             <Link
               to="/search"
-              className="mt-8 inline-flex h-12 items-center justify-center rounded-radius-button bg-action-primary px-6 text-base font-semibold text-text-on-action transition-colors duration-150 hover:bg-action-primary-hover"
+              className="mt-8 inline-flex h-12 items-center justify-center rounded-button bg-action-primary px-6 text-base font-semibold text-text-on-action transition-colors duration-150 hover:bg-action-primary-hover"
             >
               Найти жильё
             </Link>
@@ -40,7 +40,7 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* catalog — data from the API, never hardcoded */}
+      {/* catalog - data from the API, never hardcoded */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <h2 className="mb-6 text-2xl font-bold tracking-tight">Объекты</h2>
 
@@ -53,7 +53,7 @@ export function HomePage() {
           </p>
         ) : properties.length === 0 ? (
           <p className="text-text-secondary">
-            Пока нет опубликованных объектов — каталог появится, как партнёры
+            Пока нет опубликованных объектов - каталог появится, как партнёры
             добавят жильё.
           </p>
         ) : (
@@ -76,7 +76,7 @@ export function HomePage() {
                   </p>
                   <Link
                     to={`/property/${property.id}`}
-                    className="mt-4 inline-flex h-10 items-center justify-center rounded-radius-button border border-border-strong text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-interactive-hover"
+                    className="mt-4 inline-flex h-10 items-center justify-center rounded-button border border-border-strong text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-interactive-hover"
                   >
                     Подробнее
                   </Link>

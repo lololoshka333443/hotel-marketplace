@@ -12,7 +12,7 @@ export function PropertyPage() {
     enabled: Boolean(id),
   });
 
-  // Unit types of this property — what guests actually book.
+  // Unit types of this property - what guests actually book.
   const { data: unitTypes } = useQuery({
     queryKey: ["unit-types", id],
     queryFn: () => partner.listUnitTypes(id as string),
@@ -37,7 +37,7 @@ export function PropertyPage() {
         </p>
         <Link
           to="/search"
-          className="mt-6 inline-flex h-10 items-center justify-center rounded-radius-button bg-action-primary px-5 text-sm font-semibold text-text-on-action transition-colors duration-150 hover:bg-action-primary-hover"
+          className="mt-6 inline-flex h-10 items-center justify-center rounded-button bg-action-primary px-5 text-sm font-semibold text-text-on-action transition-colors duration-150 hover:bg-action-primary-hover"
         >
           Вернуться к поиску
         </Link>

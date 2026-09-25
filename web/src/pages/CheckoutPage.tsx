@@ -9,7 +9,7 @@ export function CheckoutPage() {
       <h1 className="text-3xl font-bold tracking-tight">Оплата</h1>
       <p className="mt-2 text-text-secondary">
         Бронь <code className="font-mono text-sm">{bookingId}</code>. Hold,
-        таймер 15 минут, выбор оплаты — следующий этап.
+        таймер 15 минут, выбор оплаты - следующий этап.
       </p>
     </PageShell>
   );

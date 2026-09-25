@@ -7,13 +7,13 @@ export function PartnerLayout() {
         <div className="mx-auto flex max-w-7xl items-center gap-1 px-4 py-3 text-sm sm:px-6 lg:px-8">
           <Link
             to="/partner"
-            className="rounded-radius-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
+            className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
           >
             Объекты
           </Link>
           <Link
             to="/partner/calendar"
-            className="rounded-radius-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
+            className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
           >
             Шахматка
           </Link>

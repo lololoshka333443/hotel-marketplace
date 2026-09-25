@@ -1,5 +1,5 @@
 /**
- * Page shell — the standard vertical rhythm for every page.
+ * Page shell - the standard vertical rhythm for every page.
  * Keeps measure (line length) readable on wide screens: taste/design-taste.md
  * "over-wide measure" is a slop tell.
  */

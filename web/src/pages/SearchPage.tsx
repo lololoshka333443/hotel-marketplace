@@ -34,7 +34,7 @@ export function SearchPage() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Поиск: город, название…"
         aria-label="Поиск жилья"
-        className="mt-6 h-11 w-full rounded-radius-button border border-border-default bg-surface-card px-4 text-base text-text-primary placeholder:text-text-tertiary focus:border-border-focus"
+        className="mt-6 h-11 w-full rounded-button border border-border-default bg-surface-card px-4 text-base text-text-primary placeholder:text-text-tertiary focus:border-border-focus"
       />
 
       {isPending ? (
@@ -48,7 +48,7 @@ export function SearchPage() {
         <div className="mt-12 rounded-radius-lg border border-border-default bg-surface-card p-8 text-center">
           <p className="text-base font-medium">Ничего не нашлось</p>
           <p className="mt-2 text-sm text-text-secondary">
-            Попробуйте изменить запрос — например, другой город.
+            Попробуйте изменить запрос - например, другой город.
           </p>
         </div>
       ) : (
@@ -76,7 +76,7 @@ export function SearchPage() {
                 </p>
                 <Link
                   to={`/property/${property.id}`}
-                  className="mt-4 inline-flex h-10 items-center justify-center rounded-radius-button border border-border-strong text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-interactive-hover"
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-button border border-border-strong text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-interactive-hover"
                 >
                   Посмотреть объект
                 </Link>

@@ -1,76 +1,89 @@
 @import "tailwindcss";
 @import "./theme.css";
 
-/* Map the ONE shared token theme into Tailwind v4's theme layer.
- * Components consume semantic utilities (bg-action-primary, text-text-primary…)
- * or the CSS vars directly. Never a raw Tailwind palette color. */
+/* Single theme bridge: theme.css holds the raw values as --t-* (light + dark);
+ * here we expose them under Tailwind v4's token namespaces so utilities like
+ * bg-action-primary / rounded-radius-button / shadow-focus-ring generate.
+ * Aliasing (not duplicating) keeps ONE source of truth: dark mode swaps the
+ * raw --t-* values and every utility follows. */
 @theme {
-  /* colors */
-  --color-surface-page: var(--color-surface-page);
-  --color-surface-card: var(--color-surface-card);
-  --color-surface-raised: var(--color-surface-raised);
-  --color-surface-sunken: var(--color-surface-sunken);
-  --color-surface-disabled: var(--color-surface-disabled);
+  --color-surface-page: var(--t-surface-page);
+  --color-surface-card: var(--t-surface-card);
+  --color-surface-raised: var(--t-surface-raised);
+  --color-surface-sunken: var(--t-surface-sunken);
+  --color-surface-disabled: var(--t-surface-disabled);
 
-  --color-text-primary: var(--color-text-primary);
-  --color-text-secondary: var(--color-text-secondary);
-  --color-text-tertiary: var(--color-text-tertiary);
-  --color-text-disabled: var(--color-text-disabled);
-  --color-text-on-action: var(--color-text-on-action);
-  --color-text-link: var(--color-text-link);
-  --color-text-link-hover: var(--color-text-link-hover);
+  --color-text-primary: var(--t-text-primary);
+  --color-text-secondary: var(--t-text-secondary);
+  --color-text-tertiary: var(--t-text-tertiary);
+  --color-text-disabled: var(--t-text-disabled);
+  --color-text-on-action: var(--t-text-on-action);
+  --color-text-link: var(--t-text-link);
+  --color-text-link-hover: var(--t-text-link-hover);
 
-  --color-action-primary: var(--color-action-primary);
-  --color-action-primary-hover: var(--color-action-primary-hover);
-  --color-action-primary-active: var(--color-action-primary-active);
-  --color-action-secondary: var(--color-action-secondary);
-  --color-action-secondary-hover: var(--color-action-secondary-hover);
-  --color-action-destructive: var(--color-action-destructive);
-  --color-action-destructive-hover: var(--color-action-destructive-hover);
+  --color-action-primary: var(--t-action-primary);
+  --color-action-primary-hover: var(--t-action-primary-hover);
+  --color-action-primary-active: var(--t-action-primary-active);
+  --color-action-secondary: var(--t-action-secondary);
+  --color-action-secondary-hover: var(--t-action-secondary-hover);
+  --color-action-destructive: var(--t-action-destructive);
+  --color-action-destructive-hover: var(--t-action-destructive-hover);
 
-  --color-border-default: var(--color-border-default);
-  --color-border-strong: var(--color-border-strong);
-  --color-border-focus: var(--color-border-focus);
-  --color-border-error: var(--color-border-error);
+  --color-border-default: var(--t-border-default);
+  --color-border-strong: var(--t-border-strong);
+  --color-border-focus: var(--t-border-focus);
+  --color-border-error: var(--t-border-error);
 
-  --color-feedback-success-bg: var(--color-feedback-success-bg);
-  --color-feedback-success-text: var(--color-feedback-success-text);
-  --color-feedback-warning-bg: var(--color-feedback-warning-bg);
-  --color-feedback-warning-text: var(--color-feedback-warning-text);
-  --color-feedback-error-bg: var(--color-feedback-error-bg);
-  --color-feedback-error-text: var(--color-feedback-error-text);
-  --color-feedback-info-bg: var(--color-feedback-info-bg);
-  --color-feedback-info-text: var(--color-feedback-info-text);
+  --color-feedback-success-bg: var(--t-feedback-success-bg);
+  --color-feedback-success-text: var(--t-feedback-success-text);
+  --color-feedback-warning-bg: var(--t-feedback-warning-bg);
+  --color-feedback-warning-text: var(--t-feedback-warning-text);
+  --color-feedback-error-bg: var(--t-feedback-error-bg);
+  --color-feedback-error-text: var(--t-feedback-error-text);
+  --color-feedback-info-bg: var(--t-feedback-info-bg);
+  --color-feedback-info-text: var(--t-feedback-info-text);
 
-  /* typography */
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --text-xs: var(--text-xs);
-  --text-sm: var(--text-sm);
-  --text-base: var(--text-base);
-  --text-lg: var(--text-lg);
-  --text-xl: var(--text-xl);
-  --text-2xl: var(--text-2xl);
-  --text-3xl: var(--text-3xl);
-  --text-4xl: var(--text-4xl);
-  --text-5xl: var(--text-5xl);
-  --text-6xl: var(--text-6xl);
+  --color-interactive-hover: var(--t-interactive-hover);
+  --color-interactive-active: var(--t-interactive-active);
+  --color-interactive-selected-bg: var(--t-interactive-selected-bg);
+  --color-interactive-selected-border: var(--t-interactive-selected-border);
+  --color-scrim: var(--t-scrim);
 
-  /* spacing scale (extends Tailwind's default) */
-  --spacing: 0.25rem;
+  --font-sans: var(--t-font-sans);
+  --font-mono: var(--t-font-mono);
 
-  /* radius */
-  --radius-sm: var(--radius-sm);
-  --radius-button: var(--radius-button);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
+  --text-xs: var(--t-text-xs);
+  --text-sm: var(--t-text-sm);
+  --text-base: var(--t-text-base);
+  --text-lg: var(--t-text-lg);
+  --text-xl: var(--t-text-xl);
+  --text-2xl: var(--t-text-2xl);
+  --text-3xl: var(--t-text-3xl);
+  --text-4xl: var(--t-text-4xl);
+  --text-5xl: var(--t-text-5xl);
+  --text-6xl: var(--t-text-6xl);
+  --leading-tight: var(--t-leading-tight);
+  --leading-normal: var(--t-leading-normal);
 
-  /* focus ring + motion */
-  --shadow-focus-ring: var(--shadow-focus-ring);
-  --transition-micro: var(--transition-micro);
+  --radius-sm: var(--t-radius-sm);
+  --radius-button: var(--t-radius-button);
+  --radius-lg: var(--t-radius-lg);
+  --radius-xl: var(--t-radius-xl);
+  --radius-full: var(--t-radius-full);
+
+  --size-control-sm: var(--t-size-control-sm);
+  --size-control-md: var(--t-size-control-md);
+  --size-control-lg: var(--t-size-control-lg);
+
+  /* Tailwind namespaces these as boxShadow / opacity / zIndex, not bare names */
+  --shadow-focus-ring: var(--t-shadow-focus-ring);
+  --shadow-overlay: var(--t-shadow-overlay);
+  --opacity-disabled: var(--t-opacity-disabled);
+  --z-modal: var(--t-z-modal);
+  --transition-micro: var(--t-transition-micro);
 }
 
-/* reduced-motion is honored at the token layer (theme.css) and here too. */
+/* reduced motion is honored at the token layer (theme.css) and here too. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -83,15 +96,15 @@
 }
 
 body {
-  background-color: var(--color-surface-page);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans);
+  background-color: var(--t-surface-page);
+  color: var(--t-text-primary);
+  font-family: var(--t-font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* visible focus everywhere — 3:1 ring from tokens */
+/* visible focus everywhere - 3:1 ring from tokens */
 :focus-visible {
   outline: none;
-  box-shadow: var(--shadow-focus-ring);
+  box-shadow: var(--t-shadow-focus-ring);
 }
