@@ -55,11 +55,13 @@ async function request<T>(
     method?: "GET" | "POST" | "PATCH" | "DELETE";
     body?: unknown;
     signal?: AbortSignal;
+    headers?: Record<string, string>;
   } = {},
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     Accept: "application/json",
+    ...options.headers,
   };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -126,8 +128,12 @@ export const availability = {
 // ---- booking (guest flow) -------------------------------------------------
 
 export const bookings = {
-  hold: (payload: HoldRequest) =>
-    request<BookingOut>("/bookings/hold", { method: "POST", body: payload }),
+  hold: (payload: HoldRequest, idempotencyKey?: string) =>
+    request<BookingOut>("/bookings/hold", {
+      method: "POST",
+      body: payload,
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    }),
   get: (id: string, signal?: AbortSignal) =>
     request<BookingOut>(`/bookings/${id}`, { signal }),
   pay: (id: string) => request<BookingOut>(`/bookings/${id}/pay`, { method: "POST" }),
