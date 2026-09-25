@@ -23,6 +23,8 @@ export default defineConfig({
       "/readyz": "http://localhost:8000",
     },
   },
+  // web/public holds the room photos (served as-is, /rooms/...).
+  publicDir: "public",
   build: {
     outDir: "dist",
     emptyOutDir: true,

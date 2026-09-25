@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from gen_palette import (  # noqa: E402
+from gen_palette import (
     BLACK,
     SHADES,
     WHITE,
@@ -34,7 +34,7 @@ def color(value: str, description: str = "") -> dict:
 
 
 def ref(path: str) -> dict:
-    return {"$type": "color", "$value": "{%s}" % path}
+    return {"$type": "color", "$value": f"{{{path}}}"}
 
 
 def build_colors_json(p: dict) -> dict:
@@ -44,8 +44,6 @@ def build_colors_json(p: dict) -> dict:
     }
     primitive["white"] = color(WHITE)
     primitive["black"] = color(BLACK)
-
-    b, n, g, a, r = (p["blue"], p["neutral"], p["green"], p["amber"], p["red"])
 
     doc = {
         "$schema": "https://design-tokens.github.io/community-group/format/",

@@ -11,7 +11,6 @@ but we use the WCAG 2.x `contrast` method).
 
 from __future__ import annotations
 
-import math
 import sys
 
 from coloraide import Color

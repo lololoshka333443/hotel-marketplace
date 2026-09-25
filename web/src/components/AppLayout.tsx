@@ -1,46 +1,39 @@
-import { Outlet } from "react-router-dom";
-
-import { cn } from "@/utils/cn";
+import { Link, Outlet } from "react-router-dom";
 
 export function AppLayout() {
   return (
-    <div className="min-h-screen bg-surface-page text-text-primary font-sans">
+    <div className="flex min-h-screen flex-col bg-surface-page text-text-primary font-sans">
       <header className="border-b border-border-default bg-surface-card">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href="/" className="flex items-center gap-2 text-lg font-semibold">
-            <span
-              className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-lg",
-                "bg-action-primary text-text-on-action",
-              )}
-            >
-              КР
+          <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-action-primary text-text-on-action">
+              ВН
             </span>
-            Крым&nbsp;Сей
-          </a>
+            Выше&nbsp;неба
+          </Link>
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
-            <a
-              href="/search"
-              className="rounded-button px-3 py-2 text-text-secondary hover:bg-interactive-hover hover:text-text-primary"
+            <Link
+              to="/search"
+              className="rounded-radius-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
             >
-              Поиск
-            </a>
-            <a
-              href="/partner"
-              className="rounded-button px-3 py-2 text-text-secondary hover:bg-interactive-hover hover:text-text-primary"
+              Номера
+            </Link>
+            <Link
+              to="/partner"
+              className="rounded-radius-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
             >
-              Кабинет партнёра
-            </a>
+              Партнёру
+            </Link>
           </nav>
         </div>
       </header>
-      <main>
+      <main className="flex-1">
         <Outlet />
       </main>
       <footer className="border-t border-border-default bg-surface-card py-8 text-sm text-text-secondary">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          Бронирование жилья в Крыму · мгновенное подтверждение · бесплатная
-          отмена за сутки до заезда
+          Отдых в Коктебеле · мгновенное подтверждение · бесплатная отмена за
+          сутки до заезда
         </div>
       </footer>
     </div>
