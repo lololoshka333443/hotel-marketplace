@@ -156,6 +156,18 @@ async def list_outbox(
         await get_pool().release(conn)
 
 
+@router.get("/admin/outbox/metrics")
+async def outbox_metrics(
+    token: Annotated[TokenData, Depends(require_scope("admin"))] = None,
+) -> dict:
+    """Queue health at a glance: depth, dead letters, how fast events leave."""
+    conn = await get_pool().acquire()
+    try:
+        return await service.queue_metrics(conn)
+    finally:
+        await get_pool().release(conn)
+
+
 @router.post("/admin/outbox/{event_id}/retry")
 async def retry_outbox_event(
     event_id: str,

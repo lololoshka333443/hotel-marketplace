@@ -45,6 +45,20 @@ class Settings(BaseSettings):
     # How often the iCal importer revisits a subscribed calendar.
     ical_sync_interval_sec: int = Field(default=900)
 
+    # ----- Channel API rate limits -----
+    # Per API key, separate buckets: a read burst is a nuisance, a write burst
+    # is real bookings. Over the limit the channel gets 429 + Retry-After.
+    channel_write_limit_per_min: int = Field(default=30)
+    channel_read_limit_per_min: int = Field(default=120)
+    # The window both buckets live in. Separate from the numbers so a test does
+    # not have to sleep a whole minute.
+    rate_limit_window_sec: int = Field(default=60)
+    # Per webhook subscription: the worker never pushes a partner's hook faster
+    # than this, so our queue spike cannot drown their server.
+    webhook_rate_per_sec: int = Field(default=10)
+    # How often the outbox worker claims a batch. Exposed for tests.
+    outbox_poll_interval_sec: int = Field(default=15)
+
     # ----- Payment -----
     payment_mode: str = Field(default="stub")
 

@@ -146,6 +146,57 @@ async def mark_published(conn: asyncpg.Connection, event_id: str) -> None:
     )
 
 
+async def release_claim(conn: asyncpg.Connection, event_id: str) -> None:
+    """Give a claimed event back to the queue, without burning an attempt.
+
+    Used when delivery was throttled: nothing failed, the subscriber simply
+    may not be pushed yet. The event is due again on the next cycle.
+    """
+    await conn.execute(
+        """
+        UPDATE outbox_event
+        SET status = 'pending', claimed_at = NULL
+        WHERE id = $1 AND status = 'delivering'
+        """,
+        event_id,
+    )
+
+
+async def queue_metrics(conn: asyncpg.Connection) -> dict:
+    """Queue health: depth, dead letters and how fast things actually leave.
+
+    The reconciliation viewer shows the ledger; this is the number a staffer
+    glances at to see whether the queue is keeping up.
+    """
+    row = await conn.fetchrow(
+        """
+        SELECT
+            (SELECT count(*) FROM outbox_event WHERE status = 'pending')    AS pending,
+            (SELECT count(*) FROM outbox_event WHERE status = 'delivering') AS delivering,
+            (SELECT count(*) FROM outbox_event WHERE status = 'failed')     AS failed,
+            (SELECT count(*) FROM outbox_event
+             WHERE status = 'pending' AND next_attempt_at > now())          AS scheduled,
+            (SELECT coalesce(round(
+                percentile_cont(0.5) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (published_at - happened_at))
+                )::numeric, 1), 0)
+             FROM outbox_event
+             WHERE status = 'published'
+               AND published_at > now() - interval '1 hour')                AS median_latency_sec,
+            (SELECT coalesce(extract(EPOCH FROM (now() - min(happened_at)))::int, 0)
+             FROM outbox_event WHERE status = 'pending')                    AS oldest_pending_sec
+        """,
+    )
+    return {
+        "pending": row["pending"],
+        "delivering": row["delivering"],
+        "failed": row["failed"],
+        "scheduled_for_retry": row["scheduled"],
+        "median_latency_sec": float(row["median_latency_sec"]),
+        "oldest_pending_sec": int(row["oldest_pending_sec"]),
+    }
+
+
 async def mark_retry(
     conn: asyncpg.Connection, event_id: str, attempts: int, error: str
 ) -> None:

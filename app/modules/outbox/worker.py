@@ -18,16 +18,17 @@ import contextlib
 
 import asyncpg
 
+from app.config.settings import settings
 from app.db.pool import get_pool
 from app.modules.outbox import deliver, service
+from app.utils import ratelimit
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
 
-POLL_INTERVAL_SEC = 15
-BATCH = 50
 # Rows sitting in 'delivering' longer than this are from a dead worker.
 STALE_SEC = 300
+BATCH = 50
 
 
 async def outbox_loop() -> None:
@@ -43,7 +44,7 @@ async def outbox_loop() -> None:
                 await pool.release(conn)
         except Exception as exc:
             log.error("outbox-loop-error", error=str(exc))
-        await asyncio.sleep(POLL_INTERVAL_SEC)
+        await asyncio.sleep(settings.outbox_poll_interval_sec)
 
 
 async def _run_batch(conn: asyncpg.Connection) -> None:
@@ -65,7 +66,18 @@ async def _deliver_one(conn: asyncpg.Connection, event: dict) -> None:
         return
 
     errors: list[str] = []
+    throttled = 0
     for sub in subs:
+        # Never push a subscription faster than its rate, even when our queue
+        # is bursting: a partner's hook that we DDoS is a partner we lose.
+        allowed, retry_after = await ratelimit.acquire(
+            f"rl:deliver:{sub['id']}", settings.webhook_rate_per_sec, 1
+        )
+        if not allowed:
+            throttled += 1
+            log.debug("webhook-throttled", subscription_id=sub["id"], retry_after=retry_after)
+            continue
+
         ok, status_code, error = await deliver.deliver(
             sub["url"], sub["secret"], event
         )
@@ -75,10 +87,10 @@ async def _deliver_one(conn: asyncpg.Connection, event: dict) -> None:
         if not ok:
             errors.append(f"{sub['url']}: {error}")
 
-    if not errors:
+    if not errors and not throttled:
         await service.mark_published(conn, event["id"])
         log.info("outbox-published", event_id=event["id"], subs=len(subs))
-    else:
+    elif errors:
         await service.mark_retry(
             conn, event["id"], event["attempts"] + 1, "; ".join(errors)
         )
@@ -88,3 +100,8 @@ async def _deliver_one(conn: asyncpg.Connection, event: dict) -> None:
             attempts=event["attempts"] + 1,
             error="; ".join(errors),
         )
+    else:
+        # Every subscriber was throttled, none failed: hand the claim back and
+        # let the next cycle try. No attempt is spent on a rate limit.
+        await service.release_claim(conn, event["id"])
+        log.info("outbox-throttled", event_id=event["id"], subs=len(subs))

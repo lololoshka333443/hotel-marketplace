@@ -12,12 +12,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
+from app.config.settings import settings
 from app.db.pool import get_pool
 from app.modules.auth.deps import require_scope
 from app.modules.auth.jwt import TokenData
 from app.modules.booking import service as booking_service
 from app.modules.channel import schemas, service
 from app.modules.payment import service as payment_service
+from app.utils import ratelimit
 
 router = APIRouter(prefix="/v1", tags=["channel"])
 
@@ -40,10 +42,41 @@ async def _require_api_key(x_api_key: Annotated[str | None, Header()] = None) ->
         ) from exc
 
 
+async def _limit(
+    key: Annotated[dict, Depends(_require_api_key)],
+    *,
+    bucket: str,
+    limit: int,
+) -> None:
+    allowed, retry_after = await ratelimit.acquire(
+        f"rl:channel:{bucket}:{key['id']}",
+        limit,
+        settings.rate_limit_window_sec,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="rate limit exceeded, retry later",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+async def _limit_read(key: Annotated[dict, Depends(_require_api_key)]) -> dict:
+    """Read bucket: the channel reading tariffs and availability."""
+    await _limit(key, bucket="read", limit=settings.channel_read_limit_per_min)
+    return key
+
+
+async def _limit_write(key: Annotated[dict, Depends(_require_api_key)]) -> dict:
+    """Write bucket: a burst of invented bookings is the dangerous one."""
+    await _limit(key, bucket="write", limit=settings.channel_write_limit_per_min)
+    return key
+
+
 @router.post("/channel/bookings", status_code=status.HTTP_201_CREATED)
 async def create_channel_booking(
     data: schemas.ChannelBookingRequest,
-    key: Annotated[dict, Depends(_require_api_key)],
+    key: Annotated[dict, Depends(_limit_write)],
 ) -> dict:
     """Push a booking. Same path a guest takes: hold -> pay -> confirmed.
 
@@ -92,7 +125,7 @@ async def create_channel_booking(
 @router.get("/channel/bookings/{booking_id}")
 async def get_channel_booking(
     booking_id: str,
-    key: Annotated[dict, Depends(_require_api_key)],
+    key: Annotated[dict, Depends(_limit_read)],
 ) -> dict:
     """Read back a booking the channel pushed. Only channel-origin bookings."""
     conn = await get_pool().acquire()
@@ -118,7 +151,7 @@ async def get_channel_booking(
 @router.post("/channel/bookings/{booking_id}/cancel")
 async def cancel_channel_booking(
     booking_id: str,
-    key: Annotated[dict, Depends(_require_api_key)],
+    key: Annotated[dict, Depends(_limit_write)],
 ) -> dict:
     """Cancel what the channel pushed: a hold is released, a confirmed booking refunded."""
     conn = await get_pool().acquire()
@@ -148,7 +181,7 @@ async def channel_rates(
     unit_type_id: Annotated[str, Query()],
     date_from: Annotated[dt.date, Query()],
     date_to: Annotated[dt.date, Query()],
-    key: Annotated[dict, Depends(_require_api_key)],
+    key: Annotated[dict, Depends(_limit_read)],
 ) -> dict:
     """Per-night tariffs for one unit type.
 
@@ -181,7 +214,7 @@ async def channel_availability(
     unit_type_id: Annotated[str, Query()],
     date_from: Annotated[dt.date, Query()],
     date_to: Annotated[dt.date, Query()],
-    key: Annotated[dict, Depends(_require_api_key)],
+    key: Annotated[dict, Depends(_limit_read)],
 ) -> dict:
     """Per-night availability for one unit type.
 
