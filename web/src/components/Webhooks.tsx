@@ -37,6 +37,14 @@ export function Webhooks() {
         Каждый запрос подписан HMAC-ключом, который вы настраиваете на своей
         стороне, и повторяется с задержкой, если ваш сервер не отвечает.
       </p>
+      <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+        Тот же API-ключ, что толкает брони, читает тарифы и доступность:
+        <span className="font-mono"> GET /v1/channel/rates</span> и
+        <span className="font-mono"> GET /v1/channel/availability</span> с
+        заголовком <span className="font-mono">X-API-Key</span>. Получив
+        событие об изменении цены, канал может перечитать тарифы по диапазону
+        из события.
+      </p>
 
       {isPending ? (
         <p role="status" className="mt-4 text-sm text-text-secondary">
