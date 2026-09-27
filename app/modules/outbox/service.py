@@ -11,6 +11,7 @@ delivery time.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from typing import Any
 
@@ -288,3 +289,155 @@ async def subscribers_for(
         event_type,
     )
     return [dict(r) for r in rows]
+
+
+# ---- reconciliation --------------------------------------------------------
+
+
+# A booking's delivery state, as the staff sees it. The order matters: it is
+# also the order the summary counts bookings in.
+NO_EVENT = "no_event"
+NO_LISTENER = "no_listener"
+FAILED = "failed"
+QUEUED = "queued"
+DELIVERED = "delivered"
+UNDELIVERED = "undelivered"
+PARTIAL = "partial"
+
+_BOOKING_EVENT_STATES = (DELIVERED, QUEUED, FAILED, UNDELIVERED, PARTIAL, NO_LISTENER)
+
+
+def _delivery_status(row: dict) -> str:
+    """Classify one booking against its latest outbox event.
+
+    A subscription counts as "expected" only if it is enabled now, wants this
+    event type, and already existed when the event fired — a hook created later
+    cannot be blamed for missing an older event. The delivered_ok counter uses
+    the same set, so the two numbers are always comparable.
+    """
+    if row["event_id"] is None:
+        return NO_EVENT
+    if row["expected_subscribers"] == 0:
+        # Nobody is listening. This is not an error: the partner has no hook,
+        # or disabled it. The event may still be queued; if a hook appears, it
+        # will go out on the next cycle.
+        return NO_LISTENER
+    if row["event_status"] == "failed":
+        return FAILED
+    if row["delivered_ok"] >= row["expected_subscribers"]:
+        # Every webhook that wanted the event has answered 2xx. The event may
+        # still be pending because a hook created after it keeps failing —
+        # that hook is not counted as expected, so this booking is delivered.
+        return DELIVERED
+    if row["event_status"] in ("pending", "delivering"):
+        return QUEUED
+    if row["delivered_ok"] == 0:
+        return UNDELIVERED
+    return PARTIAL
+
+
+async def reconciliation(
+    conn: asyncpg.Connection,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+) -> dict:
+    """Channel bookings vs the delivery of their latest booking event.
+
+    This is the report for "the channel says they never got the booking": for
+    every booking pushed in through the channel API it shows whether the
+    confirming (or cancelling) event actually reached every webhook that
+    wanted it.
+
+    The date range filters on booking creation; both ends are optional.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT
+            b.id::text             AS booking_id,
+            b.code,
+            b.status               AS booking_status,
+            b.checkin_date,
+            b.checkout_date,
+            b.total_amount::float8,
+            b.created_at,
+            e.id::text             AS event_id,
+            e.event_type           AS event_type,
+            e.status               AS event_status,
+            e.happened_at          AS event_happened_at,
+            e.last_error           AS event_last_error,
+            COALESCE(exp.n, 0)     AS expected_subscribers,
+            COALESCE(ok.n, 0)      AS delivered_ok
+        FROM booking b
+        JOIN property p ON p.id = b.property_id
+        LEFT JOIN LATERAL (
+            SELECT id, event_type, status, happened_at, last_error
+            FROM outbox_event
+            WHERE aggregate = 'booking' AND aggregate_id = b.id::text
+            ORDER BY happened_at DESC
+            LIMIT 1
+        ) e ON true
+        LEFT JOIN LATERAL (
+            SELECT count(*)::int AS n
+            FROM webhook_subscription s
+            WHERE s.partner_id = p.partner_id
+              AND s.enabled
+              AND s.created_at <= e.happened_at
+              AND ('*' = ANY (s.event_types) OR e.event_type = ANY (s.event_types))
+        ) exp ON true
+        LEFT JOIN LATERAL (
+            SELECT count(*)::int AS n
+            FROM webhook_delivery d
+            JOIN webhook_subscription s ON s.id = d.subscription_id
+            WHERE d.event_id = e.id
+              AND d.status = 'success'
+              AND s.partner_id = p.partner_id
+              AND s.enabled
+              AND s.created_at <= e.happened_at
+        ) ok ON true
+        WHERE b.origin = 'channel'
+          AND ($1::date IS NULL OR b.created_at::date >= $1)
+          AND ($2::date IS NULL OR b.created_at::date <= $2)
+        ORDER BY b.created_at DESC
+        LIMIT 200
+        """,
+        date_from,
+        date_to,
+    )
+
+    bookings = []
+    summary: dict[str, int] = {"total": len(rows), **{s: 0 for s in _BOOKING_EVENT_STATES}}
+    for r in rows:
+        state = _delivery_status(r)
+        summary[state] = summary.get(state, 0) + 1
+        bookings.append(
+            {
+                "booking_id": r["booking_id"],
+                "code": r["code"],
+                "status": r["booking_status"],
+                "checkin_date": r["checkin_date"].isoformat(),
+                "checkout_date": r["checkout_date"].isoformat(),
+                "total_amount": r["total_amount"],
+                "created_at": r["created_at"].isoformat(),
+                "delivery_status": state,
+                "event": (
+                    {
+                        "id": r["event_id"],
+                        "event_type": r["event_type"],
+                        "status": r["event_status"],
+                        "happened_at": r["event_happened_at"].isoformat(),
+                        "last_error": r["event_last_error"],
+                        "expected_subscribers": r["expected_subscribers"],
+                        "delivered_ok": r["delivered_ok"],
+                    }
+                    if r["event_id"]
+                    else None
+                ),
+            }
+        )
+
+    return {
+        "date_from": date_from.isoformat() if date_from else None,
+        "date_to": date_to.isoformat() if date_to else None,
+        "summary": summary,
+        "bookings": bookings,
+    }

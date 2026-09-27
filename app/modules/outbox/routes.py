@@ -7,6 +7,7 @@ Two audiences:
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -164,6 +165,25 @@ async def outbox_metrics(
     conn = await get_pool().acquire()
     try:
         return await service.queue_metrics(conn)
+    finally:
+        await get_pool().release(conn)
+
+
+@router.get("/admin/reconciliation")
+async def reconciliation(
+    date_from: dt.date | None = Query(default=None),
+    date_to: dt.date | None = Query(default=None),
+    token: Annotated[TokenData, Depends(require_scope("admin"))] = None,
+) -> dict:
+    """Channel bookings vs the delivery of their booking events.
+
+    For every booking pushed in through the channel API: did the confirming
+    (or cancelling) event reach every webhook that wanted it? This is the
+    report to reach for when a partner claims they never got a booking.
+    """
+    conn = await get_pool().acquire()
+    try:
+        return await service.reconciliation(conn, date_from, date_to)
     finally:
         await get_pool().release(conn)
 
