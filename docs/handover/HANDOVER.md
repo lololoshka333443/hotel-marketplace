@@ -20,8 +20,9 @@ PostgreSQL — источник правды, внешние площадки �
 - **Phase 2** — админка (модерация, отчёты по комиссии), iCal export/import,
   channel write-API.
 - **Phase 3** — outbox + webhook-доставка, channel read-API тарифов и
-  доступности, rate-limits, reconciliation-отчёт. **Phase 3 закрыта.**
-- **147 тестов зелёные, 14 миграций, ruff/tsc/build чистые.**
+  доступности, rate-limits, reconciliation-отчёт, retention доставки.
+  **Phase 3 закрыта.**
+- **154 теста зелёные, 15 миграций, ruff/tsc/build чистые.**
 
 ## Инварианты, которые нельзя ломать
 
@@ -58,7 +59,7 @@ PostgreSQL — источник правды, внешние площадки �
 
 ```
 cd /Users/guuu/Desktop/hotel-marketplace
-uv run python -m app.db.migrate            # 14 миграций
+uv run python -m app.db.migrate            # 15 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
 uv run uvicorn app.main:app --port 8000    # бэк + prod-фронт из web/dist
 cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8000
@@ -66,7 +67,7 @@ cd web && npm run dev                      # дев-фронт :5173, прокс
 
 Гейты (все должны быть зелёные перед коммитом):
 ```
-uv run pytest tests/ -q                    # 147
+uv run pytest tests/ -q                    # 154
 uv run ruff check app tests scripts
 cd web && npx tsc -b --noEmit && npm run build
 ```
@@ -91,30 +92,56 @@ Redis на `localhost:6379/0`.
   нули; iCal-фид пустой, пока не создать бронь.
 - **Пароли и API-ключи — SHA-256 заглушки** → argon2 перед боем.
 - **Секрет webhook-подписки хранится plaintext** → sealed column / vault.
-- Нет rate-limit на backlog очереди; outbox не шардирован.
+- Нет rate-limit на backlog очереди (растёт без ограничений); outbox не
+  шардирован. `webhook_delivery` больше не растёт — она партицирована и старится
+  retention-джобой.
 - `window.location.replace` после логина вместо инвалидации кеша TanStack.
 - РЕДИЗАЙН отложен (меняется через `scripts/gen_palette.py` + `emit_tokens.py`,
   `theme.css` руками не править).
 
-## Задача на следующий срез: retention для `webhook_delivery`
+## Что сделано в этом срезе: retention для `webhook_delivery`
 
-Таблица доставки растёт без ограничений: каждое событие × каждая подписка.
-На неё опирается reconciliation, поэтому дропать старое нельзя — нужно хранить
-сознательно.
+Лог доставки рос без ограничений (каждое событие × каждая подписка), а на него
+опирается reconciliation — дропать старое нельзя, старить сознательно.
+
+- `migrations/0015__webhook_delivery_retention.sql` — `webhook_delivery` стала
+  RANGE-партицированной по `delivered_at` (помесячно, `webhook_delivery_YYYYMM`)
+  с DEFAULT-партицией; миграция переносит существующие строки.
+- `app/modules/outbox/retention.py` — `retention_loop` в `lifespan` (рядом с
+  reaper/outbox/poller): создаёт партиции на N месяцев вперёд, удаляет `success`
+  старше `webhook_delivery_success_days` (30) и `failed` старше
+  `webhook_delivery_failed_days` (365), дропает пустые партиции старше окна.
+- `app/modules/outbox/service.py` — `record_delivery` переписана с
+  `ON CONFLICT` на update-then-insert: уникальность пары теперь per-partition
+  (глобальный индекс без ключа партицирования невозможен), FK ушли —
+  партицированная таблица не может ссылаться наружу. Безопасность та же:
+  claim через SKIP LOCKED, значит пару пишет только один воркер.
+- Сверка переживает прореженный ledger: `delivered` деградирует до `partial`
+  (часть доказательств стёрта) или `undelivered` (все) — те же статусы, что и у
+  реально недошедшей доставки.
+
+**Живые проверки**: бронь через channel-API → доставка в свежую партицию
+(`tableoid` = текущий месяц), 200 записан; retention удалил успехи старше 30
+дней, `failed` остался; reconciliation ответил `undelivered` для прореженного и
+`failed` для мёртвого письма.
+
+## Задача на следующий срез: лимит на backlog очереди
+
+Outbox растёт без ограничений: всплеск событий (массовая загрузка тарифов,
+iCal-импорт всего) кладёт в очередь тысячи строк, и воркер разгребает их с
+ограничением `webhook_rate_per_sec` на подписку. Сейчас ничего не отбрасывается
+и не приоритизируется — события устаревают в очереди молча.
 
 Что сделать:
-1. `migrations/0015__webhook_delivery_retention.sql` — партицирование
-   `webhook_delivery` по `delivered_at` (помесячно). Retention: success-строки
-   старше N дней (настройка в `settings.py`) удаляются, `status='failed'`
-   хранить дольше — по ним сверяют проблемы.
-2. Удаление по расписанию (джоба в `lifespan` или `scripts/`), не в запросе.
-3. Сверка должна это пережить: статус `partial` уже есть (ledger прорежен) —
-   проверить, что отчёт не ломается на свежей партиции.
-4. Тесты: партиция создаётся, старые success удаляются, failed переживают
-   retention, reconciliation всё ещё отвечает.
+1. Метрика возраста очереди уже есть (`oldest_pending_sec`) — добавить
+   shedding: при превышении глубины новые события для **rate/inventory**
+   (массовые) не эмитятся или идут низким приоритетом, `booking.*` всегда
+   эмитятся (бронь — источник правды, её нельзя потерять).
+2. Приоритет в `claim_due`: бронирования вперёд тарифов. Поле `priority` в
+   `outbox_event` или порядок по `aggregate`.
+3. Алёрт/индикатор в админке: очередь старше N минут → внимание.
+4. Тесты: всплеск → массовые события shed'ятся, бронь проходит; приоритет
+   меняет порядок доставки.
 
 Не трогать: инварианты брони (SERIALIZABLE + FOR UPDATE), outbox-механику
-(эмит/воркер/лимитеры), iCal.
-
-Коммить по срезам, как принято: `feat(app):`, `feat(web):`, `test(app):`,
-`docs:` — с мотивацией в теле.
+(эмит/воркер/лимитеры), iCal, retention-джобу.

@@ -9,7 +9,7 @@
 Tailwind 4 (фронт, single-app). Исходник правды — наша PostgreSQL; внешние
 площадки — каналы. Phase 2 готова целиком (админка, iCal export/import,
 channel write-API); Phase 3: outbox + webhook-доставка, channel read-API
-тарифов/доступности, rate-limits, reconciliation-отчёт (147 тестов). Подробности — docs/ARCHITECTURE.md и README.
+тарифов/доступности, rate-limits, reconciliation-отчёт, retention доставки (154 теста). Подробности — docs/ARCHITECTURE.md и README.
 
 ## Что сделано в этой сессии
 
@@ -312,8 +312,8 @@ fixed-window лимитами в Redis.
 
 ## Гейты / тесты — всё зелёное
 
-- `uv run pytest tests/ -q` — **147 passed**: 70 + 13 ical-import + 13 channel
-  + 15 outbox + 15 channel-read + 10 ratelimit + 11 reconciliation (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
+- `uv run pytest tests/ -q` — **154 passed**: 70 + 13 ical-import + 13 channel
+  + 15 outbox + 15 channel-read + 10 ratelimit + 11 reconciliation + 7 retention (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
   HMAC, частичный успех, dead letter, ретрай, эмит из всех точек)
   (парсер: unfolding, datetime-форма, RRULE/COUNT, отказы на unbounded RRULE и
   без DTSTART; apply: блокировка, разблокировка только своего, добивание
@@ -353,13 +353,10 @@ fixed-window лимитами в Redis.
   компонентов. Что остаётся как каркас и **не** переписывается: токен-система
   Меняем содержимое палитры через `scripts/gen_palette.py` (BRAND_HUE
   и шаги рампы) + `emit_tokens.py`, не правя руками `theme.css`.
-1. **Retention для `webhook_delivery`** — партицирование по `delivered_at`.
-   Сверка уже умеет показывать `partial`, когда ledger прорежен, но лучше
-   делать это по расписанию, а не когда строка внезапно пропала.
-2. **Лимит на backlog** — сейчас очередь растёт без ограничений; при росте
+1. **Лимит на backlog** — сейчас очередь растёт без ограничений; при росте
    нужны shedding/приоритеты.
-3. **Шардинг outbox** — один воркер на всю очередь; при росте — по property.
-4. **Закрыть долги безопасности** — argon2 для паролей и API-ключей,
+2. **Шардинг outbox** — один воркер на всю очередь; при росте — по property.
+3. **Закрыть долги безопасности** — argon2 для паролей и API-ключей,
    sealed column для секретов вебхуков (см. «Известные долги»).
 
 ### Известные долги
@@ -381,9 +378,6 @@ fixed-window лимитами в Redis.
   доступа по ключу (только `last_used_at`).
 - **Секрет webhook-подписки хранится plaintext** — нужен sealed column / vault
   до прода. Сейчас секрет знает только партнёр и наша БД.
-- **Outbox не шардирован и не партитионирован** — `webhook_delivery` будет
-  расти без ограничений; нужен retention (партицирование по `delivered_at`)
-  при росте.
 - Write-API не валидирует диапазон дат канала дальше базовой доступности —
   для боевого подключения канала нужна сверка тарифов.
 
@@ -391,33 +385,38 @@ fixed-window лимитами в Redis.
 
 ```
 cd /Users/guuu/Desktop/hotel-marketplace
-uv run python -m app.db.migrate            # 14 миграций
+uv run python -m app.db.migrate            # 15 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
 uv run uvicorn app.main:app --port 8000    # бэк + prod-фронт из web/dist
 cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8000
-uv run pytest tests/ -q                    # 111 тестов
+uv run pytest tests/ -q                    # 154 теста
 cd web && npx tsc -b --noEmit
 ```
 
 Демо-входы: партнёр `demo@example.com / demo-password`, админ
 `admin@example.com / admin-password`. БД: hotel_mp (hotel_user / hotel_pass).
 
-## Задача на следующий срез: retention для `webhook_delivery`
+### 9. Retention для webhook_delivery (Phase 3, срез 5)
 
-Таблица доставки растёт без ограничений: каждое событие × каждая подписка.
-Сейчас на неё опирается reconciliation (сверка броней с доставкой), так что
-просто дропать старое нельзя — нужно знать, что мы доставили, и хранить это
-сознательно.
+Лог доставки рос без ограничений (каждое событие × каждая подписка), а на него
+опирается reconciliation — дропать старое нельзя, его надо старить сознательно.
 
-Что сделать:
-1. `migrations/0015__webhook_delivery_retention.sql` — партицирование
-   `webhook_delivery` по `delivered_at` (помесячно), Retention-политика:
-   строки старше N дней (настройка в `settings.py`) удаляются, но неудачные
-   доставки (`status='failed'`) хранить дольше — по ним сверяют проблемы.
-2. `scripts/` или джоба в `lifespan` — удаление по расписанию, не в запросе.
-3. Сверка должна это пережить: `partial` уже есть как статус, проверить, что
-   отчёт не ломается на свежем партиции.
-4. Тесты: партиция создаётся, старые success-строки удаляются, failed
-   переживают retention, reconciliation всё ещё отвечает.
+- `migrations/0015__webhook_delivery_retention.sql` — таблица теперь
+  RANGE-партицирована по `delivered_at` помесячно (`webhook_delivery_YYYYMM`)
+  плюс DEFAULT-партиция; миграция переносит существующие строки.
+- `app/modules/outbox/retention.py` — джоба `retention_loop` в lifespan:
+  создаёт партиции на N месяцев вперёд, удаляет `success` старше
+  `webhook_delivery_success_days` (30) и `failed` старше
+  `webhook_delivery_failed_days` (365), дропает пустые партиции старше окна.
+- `record_delivery` переписана с `ON CONFLICT` на update-then-insert:
+  уникальность `(event_id, subscription_id)` теперь per-partition (глобальный
+  индекс без ключа партицирования невозможен), FK ушли — партицированная
+  таблица не может ссылаться наружу.
+- Сверка переживает прореженный ledger: `delivered` деградирует до `partial`
+  (часть доказательств стёрта) или `undelivered` (все) — те же статусы, что и у
+  реально недошедшей доставки.
 
-Не трогать: инварианты брони, outbox-механику (эмит/воркер), лимитеры, iCal.
+**Живые проверки**: бронь через channel-API → доставка в свежую партицию
+(`tableoid` = текущий месяц), 200 записан; retention удалил успехи старше 30
+дней, failed остался; reconciliation ответил `undelivered` для прореженного и
+`failed` для мёртвого письма.
