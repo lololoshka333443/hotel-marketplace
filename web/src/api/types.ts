@@ -212,6 +212,43 @@ export interface OutboxMetrics {
   oldest_pending_sec: number;
 }
 
+export interface ReconciliationEvent {
+  id: string;
+  event_type: string;
+  status: "pending" | "delivering" | "published" | "failed";
+  happened_at: string;
+  last_error: string | null;
+  expected_subscribers: number;
+  delivered_ok: number;
+}
+
+export interface ReconciliationRow {
+  booking_id: string;
+  code: string;
+  status: string;
+  checkin_date: string;
+  checkout_date: string;
+  total_amount: number;
+  created_at: string;
+  delivery_status: ReconciliationDeliveryStatus;
+  event: ReconciliationEvent | null;
+}
+
+export type ReconciliationDeliveryStatus =
+  | "delivered"
+  | "queued"
+  | "failed"
+  | "undelivered"
+  | "partial"
+  | "no_listener";
+
+export interface ReconciliationReport {
+  date_from: string | null;
+  date_to: string | null;
+  summary: Record<ReconciliationDeliveryStatus, number> & { total: number };
+  bookings: ReconciliationRow[];
+}
+
 export interface AvailabilityResponse {
   unit_type_id: string;
   date_from: string;

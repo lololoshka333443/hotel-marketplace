@@ -35,3 +35,6 @@ web/.vite/
 
 # Scratch Tailwind playground (not part of the app)
 web/.twtest/
+
+# TypeScript incremental build cache
+web/tsconfig.tsbuildinfo

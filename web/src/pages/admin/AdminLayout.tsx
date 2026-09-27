@@ -37,6 +37,12 @@ export function AdminLayout() {
             >
               События
             </Link>
+            <Link
+              to="/admin/reconciliation"
+              className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
+            >
+              Сверка
+            </Link>
           </nav>
           <button
             type="button"

@@ -13,6 +13,7 @@ import { AdminLoginPage } from "@/pages/admin/AdminLoginPage";
 import { AdminReportsPage } from "@/pages/admin/AdminReportsPage";
 import { AdminModerationPage } from "@/pages/admin/AdminModerationPage";
 import { AdminOutboxPage } from "@/pages/admin/AdminOutboxPage";
+import { AdminReconciliationPage } from "@/pages/admin/AdminReconciliationPage";
 import type { RouteObject } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
@@ -46,6 +47,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <AdminReportsPage /> },
           { path: "moderation", element: <AdminModerationPage /> },
           { path: "outbox", element: <AdminOutboxPage /> },
+          { path: "reconciliation", element: <AdminReconciliationPage /> },
         ],
       },
     ],

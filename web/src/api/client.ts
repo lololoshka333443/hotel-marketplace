@@ -18,6 +18,7 @@ import type {
   IcalSubscription,
   OutboxEvent,
   OutboxMetrics,
+  ReconciliationReport,
   SyncResult,
   WebhookOut,
   AdminProperty,
@@ -191,6 +192,22 @@ export const admin = {
   },
   outboxMetrics: (signal?: AbortSignal) =>
     request<OutboxMetrics>("/admin/outbox/metrics", { signal }),
+  reconciliation: (
+    dateFrom: string | null,
+    dateTo: string | null,
+    signal?: AbortSignal,
+  ) => {
+    const qs = [
+      dateFrom ? `date_from=${dateFrom}` : "",
+      dateTo ? `date_to=${dateTo}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+    return request<ReconciliationReport>(
+      `/admin/reconciliation${qs ? `?${qs}` : ""}`,
+      { signal },
+    );
+  },
   retryEvent: (eventId: string) =>
     request<{ retried: string; event_type: string }>(
       `/admin/outbox/${eventId}/retry`,
