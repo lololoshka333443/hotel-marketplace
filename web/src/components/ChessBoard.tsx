@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Lock, ShoppingCart, Clock, Minus } from "lucide-react";
 
 import { partner } from "@/api/client";
+import { Button } from "@/components/ui/Button";
 import type { CalendarDay, CalendarUnit } from "@/api/types";
 import { cn } from "@/utils/cn";
 
@@ -13,21 +14,33 @@ import { cn } from "@/utils/cn";
 export function ChessBoard({ propertyId }: { propertyId: string }) {
   const { from, to } = defaultRange();
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: ["calendar", propertyId, from, to],
     queryFn: () => partner.calendar(propertyId, from, to),
     enabled: Boolean(propertyId),
   });
 
   if (isPending) {
-    return <p className="py-8 text-text-secondary">Загружаем календарь…</p>;
+    return (
+      <p role="status" className="py-8 text-text-secondary">
+        Загружаем календарь…
+      </p>
+    );
   }
   if (isError) {
     return (
-      <p className="py-8 text-feedback-error-text">
-        Не удалось загрузить календарь.{" "}
-        {error instanceof Error ? `(${error.message})` : ""}
-      </p>
+      <div className="flex flex-wrap items-center gap-4 py-8">
+        <p role="alert" className="text-feedback-error-text">
+          Не удалось загрузить календарь. Обновите страницу.
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => window.location.reload()}
+        >
+          Обновить страницу
+        </Button>
+      </div>
     );
   }
 
@@ -35,9 +48,9 @@ export function ChessBoard({ propertyId }: { propertyId: string }) {
   if (units.length === 0) {
     return (
       <div className="rounded-lg border border-border-default bg-surface-card p-8">
-        <p className="font-medium">Нет номеров для показа</p>
+        <p className="font-medium">У этого объекта ещё нет номеров</p>
         <p className="mt-2 text-sm text-text-secondary">
-          Добавьте тип номера к этому объекту, и здесь появится расписание.
+          Добавьте тип номера, и здесь появится расписание по датам.
         </p>
       </div>
     );
@@ -69,7 +82,7 @@ export function ChessBoard({ propertyId }: { propertyId: string }) {
                     className="whitespace-nowrap px-2 py-2 text-center text-xs text-text-secondary"
                   >
                     <span className="block">{d.day}</span>
-                    <span className="block font-mono text-text-tertiary">
+                    <span className="block font-mono text-text-secondary">
                       {d.wd}
                     </span>
                   </th>
@@ -84,7 +97,7 @@ export function ChessBoard({ propertyId }: { propertyId: string }) {
                     className="sticky left-0 z-10 bg-surface-card px-3 py-2 text-left font-medium shadow-[1px_0_0_var(--color-border-default)]"
                   >
                     <span className="block">{unit.unit_type_name}</span>
-                    <span className="block text-xs font-normal text-text-tertiary">
+                    <span className="block text-xs font-normal text-text-secondary">
                       всего {unit.total_units}
                     </span>
                   </th>
@@ -113,7 +126,8 @@ function Cell({ cell, total }: { cell: CalendarDay; total: number }) {
           state === "free" && "bg-surface-sunken text-text-primary",
           state === "hold" && "bg-feedback-warning-bg text-feedback-warning-text",
           state === "sold" && "bg-feedback-info-bg text-feedback-info-text",
-          state === "closed" && "bg-action-secondary text-text-tertiary",
+          // text-secondary, not tertiary: the lock icon needs 3:1 (WCAG 1.4.11).
+          state === "closed" && "bg-action-secondary text-text-secondary",
         )}
         title={describe(cell, total)}
       >
@@ -138,7 +152,7 @@ function describe(cell: CalendarDay, total: number): string {
   if (cell.closed) return `${cell.date}: даты закрыты для бронирования`;
   if (cell.sold >= total) return `${cell.date}: всё продано`;
   if (cell.hold > 0)
-    return `${cell.date}: ${cell.hold} в холде, свободно ${cell.free}`;
+    return `${cell.date}: ${cell.hold} ждут оплаты, свободно ${cell.free}`;
   if (cell.free === 0) return `${cell.date}: нет мест`;
   return `${cell.date}: свободно ${cell.free}, цена ${cell.price.toFixed(0)} ₽`;
 }
@@ -148,7 +162,7 @@ function Legend() {
     <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-text-secondary">
       <Item swatch="bg-surface-sunken">Свободно (число)</Item>
       <Item swatch="bg-feedback-warning-bg">
-        <Clock className="size-3.5" aria-hidden="true" /> В холде
+        <Clock className="size-3.5" aria-hidden="true" /> Ждут оплаты
       </Item>
       <Item swatch="bg-feedback-info-bg">
         <ShoppingCart className="size-3.5" aria-hidden="true" /> Продано

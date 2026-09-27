@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
+import { useState } from "react";
 
 import { catalog, partner } from "@/api/client";
 import { BookingPanel } from "@/components/BookingPanel";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function PropertyPage() {
   const { id } = useParams();
 
-  const { data: property, isPending, isError, error } = useQuery({
+  const { data: property, isPending, isError } = useQuery({
     queryKey: ["property", id],
     queryFn: ({ signal }) => catalog.get(id as string, signal),
     enabled: Boolean(id),
@@ -20,10 +22,16 @@ export function PropertyPage() {
     enabled: Boolean(id),
   });
 
+  useDocumentTitle(property?.name);
+
+  // Guests book a unit type; default to the first, switch via the selector.
+  const [unitId, setUnitId] = useState<string | null>(null);
+  const selectedUnit = unitTypes?.find((u) => u.id === unitId) ?? unitTypes?.[0];
+
   if (isPending) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 text-text-secondary">
-        Загружаем объект…
+        <p role="status">Загружаем объект…</p>
       </div>
     );
   }
@@ -33,8 +41,7 @@ export function PropertyPage() {
       <div className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="text-2xl font-bold">Объект не найден</h1>
         <p className="mt-2 text-text-secondary">
-          Возможно, он снят с публикации.{" "}
-          {error instanceof Error ? `(${error.message})` : ""}
+          Возможно, он снят с публикации. Выберите другой объект из поиска.
         </p>
         <Link
           to="/search"
@@ -56,10 +63,10 @@ export function PropertyPage() {
             <img
               src={photo}
               alt={property.name}
-              className="h-72 w-full rounded-radius-lg object-cover sm:h-96"
+              className="h-72 w-full rounded-lg object-cover sm:h-96"
             />
           ) : (
-            <div className="flex h-72 w-full items-center justify-center rounded-radius-lg border border-border-default bg-surface-sunken text-text-tertiary sm:h-96">
+            <div className="flex h-72 w-full items-center justify-center rounded-lg border border-border-default bg-surface-sunken text-text-tertiary sm:h-96">
               Фото скоро появятся
             </div>
           )}
@@ -81,10 +88,11 @@ export function PropertyPage() {
             <h2 className="text-xl font-semibold">Номера</h2>
             {!unitTypes || unitTypes.length === 0 ? (
               <p className="mt-3 text-text-secondary">
-                У этого объекта пока нет номеров.
+                В этом объекте пока нет номеров для бронирования. Загляните
+                позже или выберите другой объект.
               </p>
             ) : (
-              <ul className="mt-4 divide-y divide-border-default rounded-radius-lg border border-border-default bg-surface-card">
+              <ul className="mt-4 divide-y divide-border-default rounded-lg border border-border-default bg-surface-card">
                 {unitTypes.map((unit) => (
                   <li
                     key={unit.id}
@@ -104,11 +112,27 @@ export function PropertyPage() {
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          {unitTypes && unitTypes.length > 0 ? (
-            <BookingPanel
-              unitTypeId={unitTypes[0].id}
-              currency={property.currency}
-            />
+          {unitTypes && unitTypes.length > 0 && selectedUnit ? (
+            <>
+              <label className="mb-3 block text-sm">
+                <span className="mb-1 block text-text-secondary">Номер</span>
+                <select
+                  value={selectedUnit.id}
+                  onChange={(e) => setUnitId(e.target.value)}
+                  className="h-size-control-md w-full rounded-button border border-border-strong bg-surface-card px-3 text-sm text-text-primary focus:border-border-focus focus:outline-none"
+                >
+                  {unitTypes.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {unit.name} · до {unit.capacity} человек
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <BookingPanel
+                unitTypeId={selectedUnit.id}
+                currency={property.currency}
+              />
+            </>
           ) : null}
         </aside>
       </div>

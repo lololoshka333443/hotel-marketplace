@@ -88,9 +88,12 @@
   *,
   *::before,
   *::after {
+    /* ds-allow-hardcode:start - WCAG 2.2 2.3.3/2.2.2: motion reduction needs a
+     * near-zero duration; a token would still resolve to 0.01ms. */
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
+    /* ds-allow-hardcode:end */
     scroll-behavior: auto;
   }
 }
@@ -99,7 +102,12 @@ body {
   background-color: var(--t-surface-page);
   color: var(--t-text-primary);
   font-family: var(--t-font-sans);
+  font-size: var(--t-text-base);
+  line-height: var(--t-leading-normal);
+  font-optical-sizing: auto;
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 

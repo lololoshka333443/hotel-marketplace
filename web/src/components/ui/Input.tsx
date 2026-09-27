@@ -6,9 +6,10 @@ import { cn } from "@/utils/cn";
 const inputVariants = cva(
   [
     "w-full rounded-button bg-surface-card text-text-primary",
-    "border border-border-default transition-colors duration-150",
+    // border-strong, not default: the control outline needs 3:1 (WCAG 1.4.11).
+    "border border-border-strong transition-colors duration-150",
     "placeholder:text-text-tertiary",
-    "hover:border-border-strong",
+    "hover:border-border-focus",
     "focus:border-border-focus focus:outline-none focus-visible:shadow-focus-ring",
     "aria-[invalid=true]:border-border-error",
     "disabled:bg-surface-disabled disabled:text-text-disabled disabled:cursor-not-allowed",

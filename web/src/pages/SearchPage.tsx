@@ -3,11 +3,14 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 
 import { catalog } from "@/api/client";
+import { Button } from "@/components/ui/Button";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function SearchPage() {
+  useDocumentTitle("Поиск жилья");
   const [query, setQuery] = useState("");
 
-  const { data: properties, isPending, isError, error } = useQuery({
+  const { data: properties, isPending, isError } = useQuery({
     queryKey: ["properties"],
     queryFn: ({ signal }) => catalog.list(undefined, signal),
   });
@@ -38,17 +41,27 @@ export function SearchPage() {
       />
 
       {isPending ? (
-        <p className="mt-12 text-text-secondary">Загружаем объекты…</p>
-      ) : isError ? (
-        <p className="mt-12 text-feedback-error-text">
-          Не удалось загрузить объекты.{" "}
-          {error instanceof Error ? `(${error.message})` : ""}
+        <p role="status" className="mt-12 text-text-secondary">
+          Загружаем объекты…
         </p>
+      ) : isError ? (
+        <div className="mt-12 flex flex-wrap items-center gap-4">
+          <p role="alert" className="text-feedback-error-text">
+            Не удалось загрузить объекты. Обновите страницу.
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => window.location.reload()}
+          >
+            Обновить страницу
+          </Button>
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="mt-12 rounded-radius-lg border border-border-default bg-surface-card p-8 text-center">
+        <div className="mt-12 rounded-lg border border-border-default bg-surface-card p-8 text-center">
           <p className="text-base font-medium">Ничего не нашлось</p>
           <p className="mt-2 text-sm text-text-secondary">
-            Попробуйте изменить запрос - например, другой город.
+            Попробуйте изменить запрос, например укажите другой город.
           </p>
         </div>
       ) : (
@@ -56,7 +69,7 @@ export function SearchPage() {
           {filtered.map((property) => (
             <article
               key={property.id}
-              className="flex flex-col overflow-hidden rounded-radius-lg border border-border-default bg-surface-card"
+              className="flex flex-col overflow-hidden rounded-lg border border-border-default bg-surface-card"
             >
               <img
                 src={(property.photos?.[0] as string | undefined) ?? undefined}
@@ -78,7 +91,7 @@ export function SearchPage() {
                   to={`/property/${property.id}`}
                   className="mt-4 inline-flex h-10 items-center justify-center rounded-button border border-border-strong text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-interactive-hover"
                 >
-                  Посмотреть объект
+                  Подробнее
                 </Link>
               </div>
             </article>

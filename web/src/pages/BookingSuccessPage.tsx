@@ -2,8 +2,10 @@ import { Link, useParams } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function BookingSuccessPage() {
+  useDocumentTitle("Бронь подтверждена");
   const { bookingId } = useParams();
 
   return (

@@ -79,7 +79,8 @@ export function ComponentsPage() {
             <CheckCircle2 className="size-3" aria-hidden="true" /> Оплачено
           </Badge>
           <Badge variant="warning">
-            <AlertCircle className="size-3" aria-hidden="true" /> Hold истекает
+            <AlertCircle className="size-3" aria-hidden="true" /> Ожидание
+            оплаты истекает
           </Badge>
           <Badge variant="error">
             <X className="size-3" aria-hidden="true" /> Отказано

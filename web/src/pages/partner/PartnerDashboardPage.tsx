@@ -1,15 +1,15 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { BedDouble, Building2, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { auth, partner } from "@/api/client";
+import { partner, getToken } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
-import { getToken, setToken } from "@/api/client";
 import type { PropertyOut } from "@/api/types";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 const PROPERTY_TYPES: { value: PropertyOut["property_type"]; label: string }[] = [
   { value: "hotel", label: "Отель" },
@@ -20,7 +20,8 @@ const PROPERTY_TYPES: { value: PropertyOut["property_type"]; label: string }[] =
 ];
 
 export function PartnerDashboardPage() {
-  const { data: properties, isPending, isError, error } = useQuery({
+  useDocumentTitle("Мои объекты - кабинет партнёра");
+  const { data: properties, isPending, isError } = useQuery({
     queryKey: ["partner-properties"],
     queryFn: () => partner.listProperties(),
     enabled: Boolean(getToken()),
@@ -29,11 +30,14 @@ export function PartnerDashboardPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const openCreate = () => setCreateOpen(true);
 
-  if (!getToken()) return <LoginGate />;
+  // The login form lives on /login; it sends the partner back here on success.
+  if (!getToken()) {
+    return <Navigate to="/login" state={{ from: "/partner" }} replace />;
+  }
   if (isPending) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-12 text-text-secondary">
-        Загружаем объекты…
+        <p role="status">Загружаем объекты…</p>
       </div>
     );
   }
@@ -42,8 +46,15 @@ export function PartnerDashboardPage() {
       <div className="mx-auto max-w-5xl px-4 py-12">
         <h1 className="text-2xl font-bold">Не удалось загрузить объекты</h1>
         <p className="mt-2 text-text-secondary">
-          {error instanceof Error ? `(${error.message})` : ""}
+          Обновите страницу. Если ошибка остаётся, мы уже о ней знаем.
         </p>
+        <Button
+          variant="secondary"
+          className="mt-6"
+          onClick={() => window.location.reload()}
+        >
+          Обновить страницу
+        </Button>
       </div>
     );
   }
@@ -86,7 +97,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       </h2>
       <p className="mx-auto mt-3 max-w-md text-center text-text-secondary">
         Гости бронируют и оплачивают у нас, вы получаете подтверждённые
-        бронирования. Настройте цены и доступность - дальше всё работает
+        бронирования. Настройте цены и доступность, дальше всё работает
         автоматически.
       </p>
       <div className="mt-8 flex justify-center">
@@ -178,68 +189,6 @@ function fmtTime(t: string): string {
   return t.slice(0, 5);
 }
 
-function LoginGate() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const login = useMutation({
-    mutationFn: () => auth.login(email, password),
-    onSuccess: (data) => {
-      setToken(data.access_token);
-      setError(null);
-      // Reload so the query re-runs with the token in place.
-      window.location.reload();
-    },
-    onError: () => setError("Неверный email или пароль."),
-  });
-
-  return (
-    <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Кабинет партнёра</h1>
-      <p className="mt-2 text-text-secondary">
-        Войдите, чтобы управлять объектами и бронированиями.
-      </p>
-      <form
-        className="mt-8 space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          login.mutate();
-        }}
-      >
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Email</span>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Пароль</span>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error ? (
-          <p role="alert" className="text-sm text-feedback-error-text">
-            {error}
-          </p>
-        ) : null}
-        <Button type="submit" loading={login.isPending} className="w-full" size="lg">
-          Войти
-        </Button>
-      </form>
-    </div>
-  );
-}
-
 function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = useState("");
   const [propertyType, setPropertyType] =
@@ -291,7 +240,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             onChange={(e) =>
               setPropertyType(e.target.value as PropertyOut["property_type"])
             }
-            className="h-size-control-md w-full rounded-button border border-border-default bg-surface-card px-3 text-sm text-text-primary focus:border-border-focus focus:outline-none"
+            className="h-size-control-md w-full rounded-button border border-border-strong bg-surface-card px-3 text-sm text-text-primary focus:border-border-focus focus:outline-none"
           >
             {PROPERTY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -312,15 +261,19 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           <p role="alert" className="text-sm text-feedback-error-text">
             {create.error instanceof Error
               ? create.error.message
-              : "Не удалось создать объект."}
+              : "Не удалось создать объект. Попробуйте ещё раз."}
           </p>
         ) : null}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Отмена
           </Button>
-          <Button type="submit" loading={create.isPending} disabled={name.length < 2}>
-            Создать
+          <Button
+            type="submit"
+            loading={create.isPending}
+            disabled={name.length < 2}
+          >
+            Создать объект
           </Button>
         </div>
       </form>

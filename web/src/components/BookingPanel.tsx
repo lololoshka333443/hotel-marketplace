@@ -84,6 +84,14 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
           <CalendarDays className="size-4" aria-hidden="true" />
           Проверить даты
         </Button>
+        {price.isError ? (
+          <p
+            role="alert"
+            className="mt-3 text-sm text-feedback-error-text"
+          >
+            Не удалось проверить даты. Обновите страницу и попробуйте снова.
+          </p>
+        ) : null}
       </div>
 
       {days ? (
@@ -138,7 +146,7 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
               : "Не удалось забронировать. Попробуйте ещё раз."}
           </p>
         ) : null}
-        <p className="mt-3 text-center text-xs text-text-tertiary">
+        <p className="mt-3 text-center text-xs text-text-secondary">
           Мгновенное подтверждение · 100% предоплата · бесплатная отмена за
           сутки до заезда
         </p>

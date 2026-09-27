@@ -5,12 +5,14 @@ import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { bookings } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { useCountdown, formatCountdown } from "@/hooks/useCountdown";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function CheckoutPage() {
+  useDocumentTitle("Оплата брони");
   const { bookingId } = useParams();
   const navigate = useNavigate();
 
-  const { data: booking, isPending, isError, error } = useQuery({
+  const { data: booking, isPending, isError } = useQuery({
     queryKey: ["booking", bookingId],
     queryFn: ({ signal }) => bookings.get(bookingId as string, signal),
     enabled: Boolean(bookingId),
@@ -36,7 +38,7 @@ export function CheckoutPage() {
   if (isPending) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12 text-text-secondary">
-        Загружаем бронь…
+        <p role="status">Загружаем бронь…</p>
       </div>
     );
   }
@@ -46,11 +48,10 @@ export function CheckoutPage() {
       <div className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-2xl font-bold">Бронь не найдена</h1>
         <p className="mt-2 text-text-secondary">
-          Возможно, ссылка устарела.{" "}
-          {error instanceof Error ? `(${error.message})` : ""}
+          Возможно, она истекла или была отменена.
         </p>
         <Link to="/search" className="mt-6 inline-block">
-          <Button variant="secondary">Вернуться к поиску</Button>
+          <Button variant="secondary">Найти жильё заново</Button>
         </Link>
       </div>
     );
@@ -62,7 +63,7 @@ export function CheckoutPage() {
       <p className="mt-1 font-mono text-sm text-text-secondary">{booking.code}</p>
 
       {isConfirmed ? <ConfirmedState /> : null}
-      {expired ? <ExpiredState bookingId={booking.id} /> : null}
+      {expired ? <ExpiredState code={booking.code} /> : null}
 
       <section className="mt-6 rounded-lg border border-border-default bg-surface-card p-6">
         <h2 className="text-lg font-semibold">Ваша бронь</h2>
@@ -98,8 +99,8 @@ export function CheckoutPage() {
             <Clock className="size-4 shrink-0" aria-hidden="true" />
             <span>
               Цена зафиксирована ещё{" "}
-              <strong aria-live="polite">{formatCountdown(msLeft)}</strong>. Потом
-              бронь аннулируется.
+              <strong aria-live="polite">{formatCountdown(msLeft)}</strong>.
+              После этого бронь аннулируется.
             </span>
           </div>
         ) : null}
@@ -122,11 +123,14 @@ export function CheckoutPage() {
               <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
               {pay.error instanceof Error
                 ? pay.error.message
-                : "Не удалось оплатить. Попробуйте ещё раз."}
+                : "Не удалось оплатить, деньги не списаны. Попробуйте ещё раз."}
             </p>
           ) : null}
-          <p className="mt-3 text-center text-xs text-text-tertiary">
+          <p className="mt-3 text-center text-xs text-text-secondary">
             100% предоплата. Отмена бесплатна до 24:00 дня заезда.
+          </p>
+          <p className="mt-2 text-center text-xs text-text-secondary">
+            Тестовая оплата, деньги не списываются.
           </p>
         </div>
       </section>
@@ -157,16 +161,20 @@ function ConfirmedState() {
   );
 }
 
-function ExpiredState({ bookingId }: { bookingId: string }) {
+function ExpiredState({ code }: { code: string }) {
   return (
     <div className="mt-6 flex items-start gap-3 rounded-lg border border-border-default bg-feedback-error-bg p-4 text-feedback-error-text">
       <AlertCircle className="size-5 shrink-0" aria-hidden="true" />
       <div>
         <p className="font-medium">Время оплаты истекло</p>
         <p className="mt-1 text-sm">
-          Бронь {bookingId.slice(0, 8)} аннулирована. Даты могли быть заняты -
-          выберите их заново.
+          Бронь {code} аннулирована. Даты могли быть заняты, выберите их заново.
         </p>
+        <Link to="/search" className="mt-3 inline-block">
+          <Button variant="secondary" size="sm">
+            Выбрать даты заново
+          </Button>
+        </Link>
       </div>
     </div>
   );

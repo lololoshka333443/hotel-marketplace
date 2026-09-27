@@ -2,9 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { catalog } from "@/api/client";
+import { Button } from "@/components/ui/Button";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function HomePage() {
-  const { data: properties, isPending, isError, error } = useQuery({
+  useDocumentTitle();
+  const { data: properties, isPending, isError } = useQuery({
     queryKey: ["properties"],
     queryFn: ({ signal }) => catalog.list(undefined, signal),
   });
@@ -21,8 +24,13 @@ export function HomePage() {
           fetchPriority="high"
         />
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/30 via-black/45 to-surface-page" />
+        {/* ds-allow-hardcode:start - hero min height: fixed editorial measure,
+         * not part of the spacing scale. */}
         <div className="mx-auto flex min-h-[420px] max-w-7xl items-end px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-          <div className="max-w-2xl">
+          {/* ds-allow-hardcode:end */}
+          {/* scrim: white text over an arbitrary photo needs a guaranteed
+              backdrop, not a gradient that fades to the page color. */}
+          <div className="max-w-2xl rounded-lg bg-scrim p-6 sm:p-8">
             <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
               Жильё в Крыму у моря
             </h1>
@@ -45,15 +53,25 @@ export function HomePage() {
         <h2 className="mb-6 text-2xl font-bold tracking-tight">Объекты</h2>
 
         {isPending ? (
-          <p className="text-text-secondary">Загружаем объекты…</p>
-        ) : isError ? (
-          <p className="text-feedback-error-text">
-            Не удалось загрузить объекты.{" "}
-            {error instanceof Error ? `(${error.message})` : ""}
+          <p role="status" className="text-text-secondary">
+            Загружаем объекты…
           </p>
+        ) : isError ? (
+          <div className="flex flex-wrap items-center gap-4">
+            <p role="alert" className="text-feedback-error-text">
+              Не удалось загрузить объекты. Обновите страницу.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => window.location.reload()}
+            >
+              Обновить страницу
+            </Button>
+          </div>
         ) : properties.length === 0 ? (
           <p className="text-text-secondary">
-            Пока нет опубликованных объектов - каталог появится, как партнёры
+            Пока нет опубликованных объектов. Каталог появится, как партнёры
             добавят жильё.
           </p>
         ) : (
@@ -61,7 +79,7 @@ export function HomePage() {
             {properties.map((property) => (
               <article
                 key={property.id}
-                className="overflow-hidden rounded-radius-lg border border-border-default bg-surface-card"
+                className="overflow-hidden rounded-lg border border-border-default bg-surface-card"
               >
                 <img
                   src={(property.photos?.[0] as string | undefined) ?? undefined}
