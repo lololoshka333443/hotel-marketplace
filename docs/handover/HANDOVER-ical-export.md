@@ -1,4 +1,4 @@
-# Handover prompt: UX-тексты + логин + a11y + админка + iCal export + iCal import
+# Handover prompt: UX-тексты + логин + a11y + админка + iCal export + iCal import + write-API
 
 Вставь этот текст в начало нового чата, чтобы передать контекст.
 
@@ -7,8 +7,9 @@
 Проект: B2B2C маркетплейс бронирования жилья (Крым, Коктебель). Стек: Python 3.12
 + FastAPI + asyncpg + PostgreSQL 16 (бэк), React 18 + TypeScript + Vite 6 +
 Tailwind 4 (фронт, single-app). Исходник правды — наша PostgreSQL; внешние
-площадки — каналы (Phase 2). Бэк Phase 1 + админка + iCal export + iCal import
-готовы (83 теста). Подробности — docs/ARCHITECTURE.md и README.
+площадки — каналы (Phase 2). Phase 2 готова целиком: админка, iCal export,
+iCal import, channel write-API (96 тестов). Подробности — docs/ARCHITECTURE.md
+и README.
 
 ## Что сделано в этой сессии
 
@@ -103,9 +104,52 @@ Pull-based импорт: партнёр указывает внешний ical-U
 `cleared == 2`). Аналогичная ловушка может ждать любой `... RETURNING` через
 `fetchval` — проверь при ревью.
 
+### 7. Channel write-API (Phase 2, срез 3 — завершающий)
+
+Канал (площадка/менеджер каналов) толкает брони в нас через API-ключ вместо
+JWT. Ключ — partner-scoped секрет, видит только своё имущество.
+
+- `migrations/0013__channel_api_key.sql` — `api_key`: хранится только
+  SHA-256 (как пароли, до перехода на argon2), `key_prefix` — видимый палец
+  для UI, `enabled`, `last_used_at`.
+- `app/modules/channel/service.py`:
+  - `create_key` — plaintext отдаётся **один раз**, больше нигде не хранится и
+    не показывается;
+  - `resolve_key` — маппинг ключа → partner; отвергает неизвестный,
+    отключённый и неактивный партнёра; метит `last_used_at`;
+  - `create_channel_booking` — **тот же путь, что у гостя**:
+    `create_hold` (SERIALIZABLE + FOR UPDATE, origin='channel') →
+    `pay_and_confirm`. Никаких обходов инвентаря;
+  - `idempotency_namespace` — ключи канала живут в своём пространстве
+    (`channel:{partner_id}:{client_key}`), не пересекаются с веб-ключами;
+  - replay уже подтверждённой брони возвращает её как успех (канал
+    переспросил после нашего confirm), а не 409.
+- `app/modules/channel/routes.py`:
+  - `POST /v1/channel/bookings` (X-API-Key) — пуш брони;
+  - `GET /v1/channel/bookings/{id}` — только channel-origin брони свои;
+  - `POST /v1/channel/bookings/{id}/cancel` — hold → release, confirmed →
+    refund;
+  - `GET/POST /v1/partner/api-keys`, `DELETE /v1/partner/api-keys/{id}` —
+    управление ключами партнёром (JWT).
+- `create_hold` научился `origin` (по умолчанию 'web'), чтобы канал
+  маркировался в БД и отчётах.
+- Фронт: `components/ApiKeys.tsx` на странице шахматки — список ключей
+  (prefix + «использован»), создание с модалкой «ключ показан один раз»,
+  отзыв через confirm.
+
+#### Инварианты, проверенные и живьём, и тестами
+1. **Тот же путь, что у гостя** — канал не может обойти stop sell (409),
+   перебронировать занятое (409) или создать бронь мимо inventory.
+2. **Изоляция партнёров** — ключом demo чужой unit type → 404; свой → 201.
+3. **Идемпотентность end-to-end** — replay отдаёт ту же подтверждённую бронь,
+   второй записи нет. Другие даты с тем же ключом → 409 conflict.
+4. **Отзыв** — после DELETE ключ даёт 401; созданные им брони остаются.
+5. **Канал не отменяет чужое** — бронь, созданную гостем напрямую (origin
+   'web'), канал отменить не может.
+
 ## Гейты / тесты — всё зелёное
 
-- `uv run pytest tests/ -q` — **83 passed**: 70 предыдущих + 13 ical-import
+- `uv run pytest tests/ -q` — **96 passed**: 70 + 13 ical-import + 13 channel
   (парсер: unfolding, datetime-форма, RRULE/COUNT, отказы на unbounded RRULE и
   без DTSTART; apply: блокировка, разблокировка только своего, добивание
   inventory, брони не трогаются; sync: мок HTTP, запись ошибок).
@@ -146,9 +190,8 @@ Pull-based импорт: партнёр указывает внешний ical-U
   `scripts/gen_palette.py` (BRAND_HUE и шаги рампы) + `emit_tokens.py`, не
   правя руками `theme.css`. Сначала write-API (фундамент), потом редизайн
   сверху готовой системы.
-1. **Write-API адаптер канала** — внешний толкает брони через API-ключ через
-   тот же `create_hold`. Единственный оставшийся канал Phase 2.
-2. **Outbox + sync worker** — в начале Phase 3 (webhooks наружу).
+1. **Outbox + sync worker** — начало Phase 3 (webhooks наружу, sync тарифов,
+   reconciliation).
 
 ### Известные долги
 - Регистрации на UI нет (бэк `POST /v1/auth/register` есть); стафф заводится в
@@ -164,16 +207,25 @@ Pull-based импорт: партнёр указывает внешний ical-U
   нужна отдельная БД.
 - Poller импорта ходит во внешние календари из коробки: на локали без интернета
   fetch падает по таймауту и пишет `last_status='error'` — это норма.
+- **API-ключи каналов — SHA-256**, как и пароли. Перейти на argon2 вместе с
+  паролями перед боем. Утечку ключа сейчас не отследить — нет логирования
+  доступа по ключу (только `last_used_at`).
+- Write-API не ограничен по скорости (rate limit) и не валидирует диапазон
+  дат канала дальше базовой доступности — для боевого подключения канала
+  нужны лимиты и, возможно, сверка тарифов.
+- `total_amount` в демо-данных 0: seed_demo заводит unit_type без base_price;
+  канальные брони в демо бесплатны. Для демонстрации цен надо выставить
+  base_price в seed.
 
 ## Запуск
 
 ```
 cd /Users/guuu/Desktop/hotel-marketplace
-uv run python -m app.db.migrate            # 12 миграций
+uv run python -m app.db.migrate            # 13 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
 uv run uvicorn app.main:app --port 8000    # бэк + prod-фронт из web/dist
 cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8000
-uv run pytest tests/ -q                    # 83 теста
+uv run pytest tests/ -q                    # 96 тестов
 cd web && npx tsc -b --noEmit
 ```
 

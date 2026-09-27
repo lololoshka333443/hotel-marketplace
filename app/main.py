@@ -75,6 +75,7 @@ def create_app() -> FastAPI:
     from app.modules.admin.routes import router as admin_router
     from app.modules.auth.routes import router as auth_router
     from app.modules.booking.routes import router as booking_router
+    from app.modules.channel.routes import router as channel_router
     from app.modules.inventory.routes import router as inventory_router
     from app.modules.payment.routes import router as payment_router
     from app.modules.property.routes import router as property_router
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(rate_router)
     app.include_router(admin_router)
     app.include_router(sync_router)
+    app.include_router(channel_router)
 
     # ---- single-app: serve the built frontend from one origin -------------
     # Static assets first (exact paths), then the SPA fallback so any deep

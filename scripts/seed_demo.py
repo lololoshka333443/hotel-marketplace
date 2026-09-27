@@ -42,17 +42,17 @@ PROPERTIES = [
     {
         "name": "Выше неба",
         "rooms": [
-            (1, "Семейный номер с видом на горы и террасой", 4, 1),
-            (2, "Семейный номер с видом на горы и террасой", 4, 1),
+            (1, "Семейный номер с видом на горы и террасой", 4, 1, 6500),
+            (2, "Семейный номер с видом на горы и террасой", 4, 1, 6500),
         ],
     },
     {
         "name": "Седьмое небо",
         "rooms": [
-            (3, "Номер с видом на море и горы", 4, 1),
-            (4, "Номер с террасой и видом на горы", 4, 1),
-            (5, "Номер с видом на море, горы и Коктебель", 4, 1),
-            (6, "Номер с балконом и видом на горы", 4, 1),
+            (3, "Номер с видом на море и горы", 4, 1, 7200),
+            (4, "Номер с террасой и видом на горы", 4, 1, 6900),
+            (5, "Номер с видом на море, горы и Коктебель", 4, 1, 8400),
+            (6, "Номер с балконом и видом на горы", 4, 1, 6100),
         ],
     },
 ]
@@ -119,24 +119,31 @@ async def main() -> int:
                         photos_json,
                     )
 
-                for room_no, room_name, capacity, total_units in property_def["rooms"]:
+                for room_no, room_name, capacity, total_units, base_price in property_def["rooms"]:
                     existing = await conn.fetchval(
                         "SELECT id::text FROM unit_type WHERE property_id = $1 AND name = $2",
                         property_id,
                         f"Номер {room_no} · {room_name}",
                     )
                     if existing:
+                        # A re-seed keeps prices current (rooms get repriced).
+                        await conn.execute(
+                            "UPDATE unit_type SET base_price = $2 WHERE id = $1",
+                            existing,
+                            base_price,
+                        )
                         continue
                     unit_type_id = await conn.fetchval(
                         """
-                        INSERT INTO unit_type (property_id, name, capacity, total_units)
-                        VALUES ($1, $2, $3, $4)
+                        INSERT INTO unit_type (property_id, name, capacity, total_units, base_price)
+                        VALUES ($1, $2, $3, $4, $5)
                         RETURNING id::text
                         """,
                         property_id,
                         f"Номер {room_no} · {room_name}",
                         capacity,
                         total_units,
+                        base_price,
                     )
                     if unit_type_id:
                         await conn.execute(

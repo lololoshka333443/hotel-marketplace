@@ -162,6 +162,20 @@ export interface SyncResult {
   error?: string;
 }
 
+export interface ApiKeyOut {
+  id: string;
+  label: string;
+  key_prefix: string;
+  enabled: boolean;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+/** Only ever returned by the create endpoint; never stored anywhere. */
+export interface ApiKeyWithSecret extends ApiKeyOut {
+  key: string;
+}
+
 export interface AvailabilityResponse {
   unit_type_id: string;
   date_from: string;

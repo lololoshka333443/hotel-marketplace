@@ -6,6 +6,8 @@
  */
 
 import type {
+  ApiKeyOut,
+  ApiKeyWithSecret,
   ApiError,
   AuthMe,
   AvailabilityResponse,
@@ -231,5 +233,18 @@ export const partner = {
         `/partner/unit-types/${unitTypeId}/ical-import/sync`,
         { method: "POST" },
       ),
+  },
+  apiKeys: {
+    list: (signal?: AbortSignal) =>
+      request<ApiKeyOut[]>("/partner/api-keys", { signal }),
+    create: (label: string) =>
+      request<ApiKeyWithSecret>("/partner/api-keys", {
+        method: "POST",
+        body: { label },
+      }),
+    remove: (keyId: string) =>
+      request<{ revoked: string }>(`/partner/api-keys/${keyId}`, {
+        method: "DELETE",
+      }),
   },
 };

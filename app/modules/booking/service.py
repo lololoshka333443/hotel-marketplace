@@ -79,6 +79,7 @@ async def create_hold(
     guest_email: str,
     guest_phone: str,
     idempotency_key: str | None = None,
+    origin: str = "web",
 ) -> dict:
     """Reserve inventory for the stay and return the new hold booking.
 
@@ -148,7 +149,7 @@ async def create_hold(
              guest_name, guest_email, guest_phone,
              checkin_date, checkout_date, status, origin,
              total_amount, commission_rate, commission_amt, hold_expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'hold', 'web',
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'hold', $14,
                 $10, $11, $12, $13)
         RETURNING id::text, code, status, total_amount, hold_expires_at
         """,
@@ -165,6 +166,7 @@ async def create_hold(
         legal.COMMISSION_DEFAULT_RATE,
         commission,
         hold_expires_at,
+        origin,
     )
     assert row is not None
 

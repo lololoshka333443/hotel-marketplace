@@ -6,6 +6,7 @@ import { getToken, partner } from "@/api/client";
 import { ChessBoard } from "@/components/ChessBoard";
 import { IcalExport } from "@/components/IcalExport";
 import { IcalImport } from "@/components/IcalImport";
+import { ApiKeys } from "@/components/ApiKeys";
 import { Button } from "@/components/ui/Button";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -70,6 +71,8 @@ export function PartnerCalendarPage() {
           {activeId ? <IcalImport propertyId={activeId} /> : null}
         </div>
       )}
+
+      <ApiKeys />
     </div>
   );
 }
