@@ -41,6 +41,26 @@ class NotAvailable(ChannelError):
     """The booking cannot move the way the caller asked."""
 
 
+class BadRange(ChannelError):
+    """The requested date range is empty or longer than we allow."""
+
+
+# A channel pulling tariffs cannot ask for an unbounded range. Matches the
+# partner calendar's horizon.
+MAX_READ_RANGE_DAYS = 92
+
+
+def _check_read_range(date_from: dt.date, date_to: dt.date) -> None:
+    if date_to <= date_from:
+        raise BadRange("date_to must be after date_from")
+    if (date_to - date_from).days > MAX_READ_RANGE_DAYS:
+        raise BadRange(f"range cannot exceed {MAX_READ_RANGE_DAYS} days")
+
+
+def _iso(value) -> str:
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
 def _hash(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
@@ -141,6 +161,142 @@ async def unit_type_owned_by(
             partner_id,
         )
     )
+
+
+async def get_channel_rates(
+    conn: asyncpg.Connection,
+    partner_id: str,
+    unit_type_id: str,
+    date_from: dt.date,
+    date_to: dt.date,
+) -> dict:
+    """Per-night tariffs a channel pulls to sync its own pricing.
+
+    Same key that pushes bookings, same ownership rule: another partner's unit
+    type is NotOwned (a 404 for the channel, never a leak). Prices fall back to
+    unit_type.base_price where the partner set no explicit price_day row — the
+    same fallback the partner cabinet's calendar uses.
+
+    [date_from, date_to) is half-open: the checkout night is not priced.
+    """
+    if not await unit_type_owned_by(conn, unit_type_id, partner_id):
+        raise NotOwned("unit type not found")
+    _check_read_range(date_from, date_to)
+
+    rows = await conn.fetch(
+        """
+        SELECT d.date,
+               p.currency,
+               COALESCE(pd.price::float8, ut.base_price::float8) AS price,
+               COALESCE(pd.min_stay, 1)                          AS min_stay,
+               COALESCE(pd.max_stay, 0)                          AS max_stay,
+               COALESCE(pd.cta, true)                            AS cta,
+               COALESCE(pd.ctd, true)                            AS ctd,
+               COALESCE(pd.stop_sell, false)                     AS stop_sell
+        FROM (SELECT generate_series($2::date, ($3::date - interval '1 day')::date, '1 day')::date AS date) d
+        JOIN unit_type ut ON ut.id = $1
+        JOIN property  p  ON p.id = ut.property_id
+        LEFT JOIN LATERAL (
+            SELECT id FROM rate_plan
+            WHERE unit_type_id = ut.id AND active
+            ORDER BY created_at
+            LIMIT 1
+        ) rp ON true
+        LEFT JOIN price_day pd ON pd.rate_plan_id = rp.id AND pd.date = d.date
+        ORDER BY d.date
+        """,
+        unit_type_id,
+        date_from,
+        date_to,
+    )
+    return {
+        "unit_type_id": unit_type_id,
+        "date_from": date_from.isoformat(),
+        "date_to": date_to.isoformat(),
+        "currency": rows[0]["currency"] if rows else "RUB",
+        "days": [
+            {
+                "date": _iso(r["date"]),
+                "price": r["price"],
+                "min_stay": r["min_stay"],
+                "max_stay": r["max_stay"] or None,
+                "cta": r["cta"],
+                "ctd": r["ctd"],
+                "stop_sell": r["stop_sell"],
+            }
+            for r in rows
+        ],
+    }
+
+
+async def get_channel_availability(
+    conn: asyncpg.Connection,
+    partner_id: str,
+    unit_type_id: str,
+    date_from: dt.date,
+    date_to: dt.date,
+) -> dict:
+    """Per-night availability a channel pulls to sync its inventory.
+
+    free = available - hold - sold, floored at 0. A closed date (stop sell,
+    incl. an iCal-imported closure) is flagged separately: it may still report
+    free units, but it is not bookable — a channel must not sell it, the same
+    rule that rejects a channel booking on a closed date.
+
+    [date_from, date_to) is half-open: the checkout night is not a stay. Days
+    the inventory generator has not reached yet are reported as free=0.
+    """
+    if not await unit_type_owned_by(conn, unit_type_id, partner_id):
+        raise NotOwned("unit type not found")
+    _check_read_range(date_from, date_to)
+
+    rows = await conn.fetch(
+        """
+        SELECT d.date,
+               ut.total_units,
+               COALESCE(i.available, 0)  AS available,
+               COALESCE(i.hold, 0)       AS hold,
+               COALESCE(i.sold, 0)       AS sold,
+               COALESCE(i.closed, false) AS closed,
+               COALESCE(pd.stop_sell, false) AS stop_sell
+        FROM (SELECT generate_series($2::date, ($3::date - interval '1 day')::date, '1 day')::date AS date) d
+        JOIN unit_type ut ON ut.id = $1
+        LEFT JOIN inventory_day i ON i.unit_type_id = ut.id AND i.date = d.date
+        LEFT JOIN LATERAL (
+            SELECT id FROM rate_plan
+            WHERE unit_type_id = ut.id AND active
+            ORDER BY created_at
+            LIMIT 1
+        ) rp ON true
+        LEFT JOIN price_day pd ON pd.rate_plan_id = rp.id AND pd.date = d.date
+        ORDER BY d.date
+        """,
+        unit_type_id,
+        date_from,
+        date_to,
+    )
+    days = []
+    for r in rows:
+        closed = bool(r["closed"]) or bool(r["stop_sell"])
+        free = max(r["available"] - r["hold"] - r["sold"], 0)
+        days.append(
+            {
+                "date": _iso(r["date"]),
+                "available": r["available"],
+                "hold": r["hold"],
+                "sold": r["sold"],
+                "free": free,
+                "closed": closed,
+                "bookable": 0 if closed else free,
+            }
+        )
+    return {
+        "unit_type_id": unit_type_id,
+        "date_from": date_from.isoformat(),
+        "date_to": date_to.isoformat(),
+        "total_units": rows[0]["total_units"] if rows else 0,
+        "days": days,
+    }
 
 
 async def booking_owned_by(

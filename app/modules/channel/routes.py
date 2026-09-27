@@ -7,9 +7,10 @@ Two audiences share this module:
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.db.pool import get_pool
 from app.modules.auth.deps import require_scope
@@ -140,6 +141,72 @@ async def cancel_channel_booking(
             ) from exc
     finally:
         await get_pool().release(conn)
+
+
+@router.get("/channel/rates")
+async def channel_rates(
+    unit_type_id: Annotated[str, Query()],
+    date_from: Annotated[dt.date, Query()],
+    date_to: Annotated[dt.date, Query()],
+    key: Annotated[dict, Depends(_require_api_key)],
+) -> dict:
+    """Per-night tariffs for one unit type.
+
+    The channel reads with the *same* API key it pushes bookings with, and only
+    ever sees its own partner's inventory. Where the partner set no explicit
+    price, the unit's base price applies. Half-open range: the checkout night
+    is not priced.
+    """
+    pool = get_pool()
+    conn = await pool.acquire()
+    try:
+        try:
+            return await service.get_channel_rates(
+                conn, key["partner_id"], unit_type_id, date_from, date_to
+            )
+        except service.NotOwned as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
+        except service.BadRange as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+    finally:
+        await pool.release(conn)
+
+
+@router.get("/channel/availability")
+async def channel_availability(
+    unit_type_id: Annotated[str, Query()],
+    date_from: Annotated[dt.date, Query()],
+    date_to: Annotated[dt.date, Query()],
+    key: Annotated[dict, Depends(_require_api_key)],
+) -> dict:
+    """Per-night availability for one unit type.
+
+    free = available - hold - sold. Closed dates (stop sell, including
+    iCal-imported closures) are flagged and not bookable — the same rule that
+    rejects a booking pushed on a closed date. Half-open range: checkout is not
+    a stay.
+    """
+    pool = get_pool()
+    conn = await pool.acquire()
+    try:
+        try:
+            return await service.get_channel_availability(
+                conn, key["partner_id"], unit_type_id, date_from, date_to
+            )
+        except service.NotOwned as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
+        except service.BadRange as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+    finally:
+        await pool.release(conn)
 
 
 # ---- partner face ----------------------------------------------------------
