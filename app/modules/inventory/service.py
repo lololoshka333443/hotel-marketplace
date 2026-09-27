@@ -105,6 +105,25 @@ async def close_range(
         closed,
     )
     await _invalidate(unit_type_id)
+
+    # A stop-sell change is exactly what a channel syncs availability for.
+    from app.modules.outbox import service as outbox_service
+
+    property_id = await outbox_service.property_of_unit_type(conn, unit_type_id)
+    if property_id is not None:
+        await outbox_service.emit(
+            conn,
+            aggregate="inventory",
+            aggregate_id=unit_type_id,
+            event_type=outbox_service.INVENTORY_AVAILABILITY_CHANGED,
+            payload={
+                "unit_type_id": unit_type_id,
+                "date_from": date_from.isoformat(),
+                "date_to": date_to.isoformat(),
+                "closed": closed,
+            },
+            property_id=property_id,
+        )
     log.info(
         "inventory-closed",
         unit_type_id=unit_type_id,

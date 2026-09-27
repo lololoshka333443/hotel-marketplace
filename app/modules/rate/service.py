@@ -88,6 +88,29 @@ async def set_prices(
     )
     assert row is not None
     await _invalidate(rate_plan_id)
+
+    # Channels need to know a price changed so they can re-sync their tariffs.
+    from app.modules.outbox import service as outbox_service
+
+    property_id = await outbox_service.property_of_rate_plan(conn, rate_plan_id)
+    if property_id is not None:
+        await outbox_service.emit(
+            conn,
+            aggregate="rate_plan",
+            aggregate_id=rate_plan_id,
+            event_type=outbox_service.RATE_PRICES_CHANGED,
+            payload={
+                "rate_plan_id": rate_plan_id,
+                "unit_type_id": await conn.fetchval(
+                    "SELECT unit_type_id::text FROM rate_plan WHERE id = $1", rate_plan_id
+                ),
+                "date_from": date_from.isoformat(),
+                "date_to": date_to.isoformat(),
+                "price": price,
+                "min_stay": min_stay,
+            },
+            property_id=property_id,
+        )
     return 1
 
 

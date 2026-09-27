@@ -1,4 +1,4 @@
-# Handover prompt: UX-тексты + логин + a11y + админка + iCal export + iCal import + write-API
+# Handover prompt: UX-тексты + логин + a11y + админка + iCal export + iCal import + write-API + outbox
 
 Вставь этот текст в начало нового чата, чтобы передать контекст.
 
@@ -7,9 +7,9 @@
 Проект: B2B2C маркетплейс бронирования жилья (Крым, Коктебель). Стек: Python 3.12
 + FastAPI + asyncpg + PostgreSQL 16 (бэк), React 18 + TypeScript + Vite 6 +
 Tailwind 4 (фронт, single-app). Исходник правды — наша PostgreSQL; внешние
-площадки — каналы (Phase 2). Phase 2 готова целиком: админка, iCal export,
-iCal import, channel write-API (96 тестов). Подробности — docs/ARCHITECTURE.md
-и README.
+площадки — каналы. Phase 2 готова целиком (админка, iCal export/import,
+channel write-API); Phase 3 начата — outbox + webhook-доставка (111 тестов).
+Подробности — docs/ARCHITECTURE.md и README.
 
 ## Что сделано в этой сессии
 
@@ -147,9 +147,54 @@ JWT. Ключ — partner-scoped секрет, видит только своё 
 5. **Канал не отменяет чужое** — бронь, созданную гостем напрямую (origin
    'web'), канал отменить не может.
 
+### 8. Outbox + webhook-доставка (Phase 3, срез 1)
+
+Мы → внешние системы. Любое бизнес-событие пишется в `outbox_event` **в той же
+транзакции**, что и изменение, которое его описывает; фоновый воркер забирает
+строки и доставляет по подпискам партнёра. Запрос никогда не ждёт webhook —
+медленный или мёртвый получатель не тормозит бронь.
+
+- `migrations/0014__outbox.sql` — три таблицы: `outbox_event` (событие с
+  состояниями pending/delivering/published/failed, backoff, dead-letter),
+  `webhook_subscription` (URL + секрет + фильтр по типам событий),
+  `webhook_delivery` (лог доставки каждому получателю — это и есть
+  reconciliation).
+- `app/modules/outbox/service.py` — `emit()` на запись (глотает ошибки, чтобы
+  никогда не откатить бизнес-операцию), `claim_due` (SKIP LOCKED, как у
+  reaper'а и iCal-импортёра), `reclaim_stale` (воркер умер mid-flight →
+  строка вернётся в очередь), dead-letter при `attempts >= max_attempts`.
+- `app/modules/outbox/deliver.py` — HTTP POST, тело подписывается
+  HMAC-SHA256 (`X-Signature`), `Idempotency-Key` = id события (получатель
+  может получить его дважды при ретрае — должен дедуплицить).
+- `app/modules/outbox/worker.py` — вечный цикл рядом с reaper и поллером.
+- Точки эмита (всё внутри бизнес-транзакции): `booking.confirmed`,
+  `booking.cancelled` (refund + истёкший hold), `rate.prices_changed`,
+  `inventory.availability_changed` (ручной стоп-селл + iCal-импорт),
+  `property.status_changed` (модерация).
+- Роуты: партнёр `GET/POST/DELETE /v1/partner/webhooks` (секрет не
+  возвращается), админ `GET /v1/admin/outbox?status=` + `POST
+  /v1/admin/outbox/{id}/retry` (поднятие дед-леттера).
+- Фронт: `components/Webhooks.tsx` на шахматке (подписка с выбором событий,
+  статус последней доставки) и `pages/admin/AdminOutboxPage.tsx` —
+  reconciliation-вьюер с фильтром по статусу и кнопкой «Повторить».
+
+#### Инварианты, проверенные и тестами, и живьём
+1. **Событие и изменение неразделимы** — откат транзакции убивает и событие
+   (тест на rollback).
+2. **Эмит никогда не ломает бизнес** — сломанный outbox глотает ошибку, бронь
+   проходит.
+3. **Частичный успех не блокирует** — один отвалившийся webhook не мешает
+   другому получить событие; ретрай доходит только до тех, кто не ответил 200.
+4. **Dead letter** — 6 попыток с экспоненциальным бэкоффом → `failed` с
+   понятной ошибкой, админ может поставить обратно в очередь.
+5. **Подпись проверяется на приёмной стороне** — поднимал локальный hook:
+   `sig_ok: true` на каждом событии.
+
 ## Гейты / тесты — всё зелёное
 
-- `uv run pytest tests/ -q` — **96 passed**: 70 + 13 ical-import + 13 channel
+- `uv run pytest tests/ -q` — **111 passed**: 70 + 13 ical-import + 13 channel
+  + 15 outbox (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
+  HMAC, частичный успех, dead letter, ретрай, эмит из всех точек)
   (парсер: unfolding, datetime-форма, RRULE/COUNT, отказы на unbounded RRULE и
   без DTSTART; apply: блокировка, разблокировка только своего, добивание
   inventory, брони не трогаются; sync: мок HTTP, запись ошибок).
@@ -190,8 +235,13 @@ JWT. Ключ — partner-scoped секрет, видит только своё 
   `scripts/gen_palette.py` (BRAND_HUE и шаги рампы) + `emit_tokens.py`, не
   правя руками `theme.css`. Сначала write-API (фундамент), потом редизайн
   сверху готовой системы.
-1. **Outbox + sync worker** — начало Phase 3 (webhooks наружу, sync тарифов,
-   reconciliation).
+1. **Доделать Phase 3**: sync тарифов в канал (Сейчас мы сообщаем об
+   изменении цены событием — канал должен мочь вытащить сами тарифы через
+   read-API тарифов, его ещё нет), rate-limit на write-API, метрики доставки
+   (сколько событий в очереди, медианная задержка) — для наблюдения.
+2. **Reconciliation-отчёт** — сверка наших броней с тем, что канал получил:
+   по `webhook_delivery` видно расхождение, но автоматической сверки нет.
+3. **Outbox + sync worker (механика)** — готово; осталась прикладная часть.
 
 ### Известные долги
 - Регистрации на UI нет (бэк `POST /v1/auth/register` есть); стафф заводится в
@@ -210,6 +260,13 @@ JWT. Ключ — partner-scoped секрет, видит только своё 
 - **API-ключи каналов — SHA-256**, как и пароли. Перейти на argon2 вместе с
   паролями перед боем. Утечку ключа сейчас не отследить — нет логирования
   доступа по ключу (только `last_used_at`).
+- **Секрет webhook-подписки хранится plaintext** — нужен sealed column / vault
+  до прода. Сейчас секрет знает только партнёр и наша БД.
+- **Outbox не шардирован и не партитионирован** — `webhook_delivery` будет
+  расти без ограничений; нужен retention (партицирование по `delivered_at`)
+  при росте.
+- **Нет rate-limit на доставку** — webhook партнёра может утонуть в очереди
+  из нашего всплеска событий; бэкофф есть, а лимита на новые нет.
 - Write-API не ограничен по скорости (rate limit) и не валидирует диапазон
   дат канала дальше базовой доступности — для боевого подключения канала
   нужны лимиты и, возможно, сверка тарифов.
@@ -221,11 +278,11 @@ JWT. Ключ — partner-scoped секрет, видит только своё 
 
 ```
 cd /Users/guuu/Desktop/hotel-marketplace
-uv run python -m app.db.migrate            # 13 миграций
+uv run python -m app.db.migrate            # 14 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
 uv run uvicorn app.main:app --port 8000    # бэк + prod-фронт из web/dist
 cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8000
-uv run pytest tests/ -q                    # 96 тестов
+uv run pytest tests/ -q                    # 111 тестов
 cd web && npx tsc -b --noEmit
 ```
 

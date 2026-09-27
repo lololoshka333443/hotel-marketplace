@@ -176,6 +176,33 @@ export interface ApiKeyWithSecret extends ApiKeyOut {
   key: string;
 }
 
+export interface WebhookOut {
+  id: string;
+  url: string;
+  event_types: string[];
+  enabled: boolean;
+  last_delivery_at: string | null;
+  last_status: "success" | "failed" | null;
+  last_error: string | null;
+  created_at: string;
+}
+
+export interface OutboxEvent {
+  id: string;
+  aggregate: string;
+  aggregate_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "delivering" | "published" | "failed";
+  attempts: number;
+  max_attempts: number;
+  last_error: string | null;
+  happened_at: string;
+  published_at: string | null;
+  delivered_ok: number;
+  delivered_fail: number;
+}
+
 export interface AvailabilityResponse {
   unit_type_id: string;
   date_from: string;

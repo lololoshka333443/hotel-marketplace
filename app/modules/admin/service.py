@@ -110,5 +110,18 @@ async def set_property_status(
         property_id,
         new_status,
     )
+    if row is None:
+        return None
+
+    from app.modules.outbox import service as outbox_service
+
+    await outbox_service.emit(
+        conn,
+        aggregate="property",
+        aggregate_id=property_id,
+        event_type=outbox_service.PROPERTY_STATUS_CHANGED,
+        payload={"property_id": property_id, "name": row["name"], "status": new_status},
+        property_id=property_id,
+    )
     log.info("property-moderated", property_id=property_id, status=new_status)
-    return dict(row) if row else None
+    return dict(row)

@@ -16,7 +16,9 @@ import type {
   CommissionReport,
   IcalFeed,
   IcalSubscription,
+  OutboxEvent,
   SyncResult,
+  WebhookOut,
   AdminProperty,
   AdminPropertyStatus,
   HoldConflict,
@@ -182,6 +184,15 @@ export const admin = {
       method: "PATCH",
       body: { status },
     }),
+  outbox: (status: string | null, signal?: AbortSignal) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<OutboxEvent[]>(`/admin/outbox${qs}`, { signal });
+  },
+  retryEvent: (eventId: string) =>
+    request<{ retried: string; event_type: string }>(
+      `/admin/outbox/${eventId}/retry`,
+      { method: "POST" },
+    ),
 };
 
 export const partner = {
@@ -244,6 +255,19 @@ export const partner = {
       }),
     remove: (keyId: string) =>
       request<{ revoked: string }>(`/partner/api-keys/${keyId}`, {
+        method: "DELETE",
+      }),
+  },
+  webhooks: {
+    list: (signal?: AbortSignal) =>
+      request<WebhookOut[]>("/partner/webhooks", { signal }),
+    create: (url: string, secret: string, eventTypes: string[]) =>
+      request<WebhookOut>("/partner/webhooks", {
+        method: "POST",
+        body: { url, secret, event_types: eventTypes },
+      }),
+    remove: (webhookId: string) =>
+      request<{ deleted: string }>(`/partner/webhooks/${webhookId}`, {
         method: "DELETE",
       }),
   },

@@ -201,7 +201,11 @@ async def create_hold(
 async def release_hold(conn: asyncpg.Connection, booking_id: str) -> None:
     """Return hold inventory to the pool and mark the booking cancelled."""
     booking = await conn.fetchrow(
-        "SELECT unit_type_id::text, checkin_date, checkout_date, status FROM booking WHERE id = $1",
+        """
+        SELECT b.unit_type_id::text, b.property_id::text, b.code,
+               b.checkin_date, b.checkout_date, b.status
+        FROM booking b WHERE b.id = $1
+        """,
         booking_id,
     )
     if booking is None:
@@ -221,6 +225,24 @@ async def release_hold(conn: asyncpg.Connection, booking_id: str) -> None:
     await conn.execute(
         "UPDATE booking SET status = 'cancelled', cancelled_at = now() WHERE id = $1",
         booking_id,
+    )
+
+    from app.modules.outbox import service as outbox_service
+
+    await outbox_service.emit(
+        conn,
+        aggregate="booking",
+        aggregate_id=booking_id,
+        event_type=outbox_service.BOOKING_CANCELLED,
+        payload={
+            "booking_id": booking_id,
+            "code": booking["code"],
+            "unit_type_id": booking["unit_type_id"],
+            "checkin_date": booking["checkin_date"].isoformat(),
+            "checkout_date": booking["checkout_date"].isoformat(),
+            "expired": booking["status"] == "hold",
+        },
+        property_id=booking["property_id"],
     )
     log.info("hold-released", booking_id=booking_id)
 

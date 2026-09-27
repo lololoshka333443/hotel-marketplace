@@ -31,6 +31,12 @@ export function AdminLayout() {
             >
               Модерация
             </Link>
+            <Link
+              to="/admin/outbox"
+              className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
+            >
+              События
+            </Link>
           </nav>
           <button
             type="button"

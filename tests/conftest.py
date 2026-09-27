@@ -20,10 +20,17 @@ import pytest_asyncio
 from app.config.settings import settings
 
 _CLEANUP = (
+    "DELETE FROM webhook_delivery; "
+    "DELETE FROM outbox_event; "
+    "DELETE FROM webhook_subscription; "
+    "DELETE FROM api_key; "
+    "DELETE FROM ical_subscription; "
     "DELETE FROM booking_line; "
     "DELETE FROM payment; "
     "DELETE FROM booking; "
     "DELETE FROM inventory_day; "
+    "DELETE FROM price_day; "
+    "DELETE FROM rate_plan; "
     "DELETE FROM unit_type; "
     "DELETE FROM property; "
     "DELETE FROM partner; "

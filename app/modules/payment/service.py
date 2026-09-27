@@ -142,6 +142,27 @@ async def pay_and_confirm(booking_id: str, conn: asyncpg.Connection | None = Non
             )
             log.info("booking-confirmed", booking_id=booking_id, code=row["code"])
 
+            # Tell the channels. Same transaction as the confirmation, so the
+            # outbox row can never exist without the booking it describes.
+            from app.modules.outbox import service as outbox_service
+
+            await outbox_service.emit(
+                conn,
+                aggregate="booking",
+                aggregate_id=booking_id,
+                event_type=outbox_service.BOOKING_CONFIRMED,
+                payload={
+                    "booking_id": booking_id,
+                    "code": row["code"],
+                    "unit_type_id": booking["unit_type_id"],
+                    "checkin_date": row["checkin_date"].isoformat(),
+                    "checkout_date": row["checkout_date"].isoformat(),
+                    "total_amount": float(row["total_amount"]),
+                    "commission_amt": float(row["commission_amt"]),
+                },
+                property_id=row["property_id"],
+            )
+
             from app.modules.notification import service as notification_service
 
             try:
@@ -186,7 +207,7 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
         booking = await conn.fetchrow(
             """
             SELECT id::text, code, status, total_amount::float8, checkin_date, checkout_date,
-                   unit_type_id::text
+                   unit_type_id::text, property_id::text
             FROM booking WHERE id = $1
             """,
             booking_id,
@@ -238,6 +259,25 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
                 booking_id,
             )
             assert row is not None
+
+            from app.modules.outbox import service as outbox_service
+
+            await outbox_service.emit(
+                conn,
+                aggregate="booking",
+                aggregate_id=booking_id,
+                event_type=outbox_service.BOOKING_CANCELLED,
+                payload={
+                    "booking_id": booking_id,
+                    "code": row["code"],
+                    "unit_type_id": booking["unit_type_id"],
+                    "checkin_date": row["checkin_date"].isoformat(),
+                    "checkout_date": row["checkout_date"].isoformat(),
+                    "total_amount": float(row["total_amount"]),
+                    "free_cancelled": is_free,
+                },
+                property_id=booking["property_id"],
+            )
             await _record_payment(
                 conn, booking_id, provider.name, amount, "refunded", result.external_id
             )

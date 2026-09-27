@@ -109,7 +109,6 @@ async def apply_import(
             """,
             [(unit_type_id, d, IMPORT_SOURCE) for d in blocked_list],
         )
-
     # Clear import-closed dates that left the feed. Manual closures
     # (closed_source = 'manual') are deliberately not touched.
     cleared_rows = await conn.fetch(
@@ -134,8 +133,26 @@ async def apply_import(
         IMPORT_SOURCE,
     )
 
-    return {"blocked": len(blocked_list), "cleared": len(cleared_rows)}
+    from app.modules.outbox import service as outbox_service
 
+    if blocked_list or cleared_rows:
+        property_id = await outbox_service.property_of_unit_type(conn, unit_type_id)
+        if property_id is not None:
+            await outbox_service.emit(
+                conn,
+                aggregate="inventory",
+                aggregate_id=unit_type_id,
+                event_type=outbox_service.INVENTORY_AVAILABILITY_CHANGED,
+                payload={
+                    "unit_type_id": unit_type_id,
+                    "blocked_count": len(blocked_list),
+                    "cleared_count": len(cleared_rows),
+                    "source": IMPORT_SOURCE,
+                },
+                property_id=property_id,
+            )
+
+    return {"blocked": len(blocked_list), "cleared": len(cleared_rows)}
 
 async def list_due(conn: asyncpg.Connection, limit: int = 25) -> list[str]:
     """Claim subscriptions due for a sync.
