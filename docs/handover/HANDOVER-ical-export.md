@@ -1,4 +1,4 @@
-# Handover prompt: UX-тексты + логин + a11y + админка + iCal export + iCal import + write-API + outbox
+# Handover prompt: UX-тексты + логин + a11y + админка + iCal export + iCal import + write-API + outbox + channel read-API
 
 Вставь этот текст в начало нового чата, чтобы передать контекст.
 
@@ -8,8 +8,8 @@
 + FastAPI + asyncpg + PostgreSQL 16 (бэк), React 18 + TypeScript + Vite 6 +
 Tailwind 4 (фронт, single-app). Исходник правды — наша PostgreSQL; внешние
 площадки — каналы. Phase 2 готова целиком (админка, iCal export/import,
-channel write-API); Phase 3 начата — outbox + webhook-доставка (111 тестов).
-Подробности — docs/ARCHITECTURE.md и README.
+channel write-API); Phase 3: outbox + webhook-доставка и channel read-API
+тарифов/доступности (126 тестов). Подробности — docs/ARCHITECTURE.md и README.
 
 ## Что сделано в этой сессии
 
@@ -190,10 +190,55 @@ JWT. Ключ — partner-scoped секрет, видит только своё 
 5. **Подпись проверяется на приёмной стороне** — поднимал локальный hook:
    `sig_ok: true` на каждом событии.
 
+### 9. Channel read-API тарифов и доступности (Phase 3, срез 2)
+
+Канал читает тарифы и доступность **тем же API-ключом**, которым толкает
+брони. Это закрывает кольцо sync'а: `rate.prices_changed` / 
+`inventory.availability_changed` прилетают в webhook → канал идёт читать
+диапазон из события.
+
+- `app/modules/channel/service.py`:
+  - `get_channel_rates` — цены по дням над полузакрытым диапазоном
+    `[date_from, date_to)` с тем же fallback на `unit_type.base_price`, что
+    использует `rate/service.py:get_prices` партнёрский кабинет;
+  - `get_channel_availability` — `free = available - hold - sold` (floored),
+    закрытые даты (`inventory_day.closed` **или** `price_day.stop_sell`)
+    помечены отдельно и `bookable = 0`: канал не должен продавать закрытое,
+    это же отбивает write-API;
+  - обе функции — ownership check через существующий `unit_type_owned_by`
+    (→ `NotOwned` → 404), диапазон ограничен 92 днями как календарь (`BadRange`
+    → 422);
+  - активный rate plan один на unit_type (`active` + `ORDER BY created_at
+    LIMIT 1` в LATERAL) — без плана всё работает на base_price.
+- `app/modules/channel/routes.py`:
+  - `GET /v1/channel/rates?unit_type_id=&date_from=&date_to=` (X-API-Key);
+  - `GET /v1/channel/availability?...` (X-API-Key);
+  - ключам используется тот же `resolve_key`, что и для брони: `last_used_at`
+    метится и на чтение (утечку ключа хоть как-то видно).
+- Фронт: в `components/Webhooks.tsx` подписана dokumentация — канал читает
+  тарифы/доступность тем же ключом; эндпойнты прописаны рядом с подписками.
+
+#### Инварианты, проверенные и тестами, и живьём
+1. **Изоляция партнёров** — ключом demo чужой unit type → 404 на обоих
+   эндпойнтах (и в сервисных тестах через `NotOwned`, и в HTTP через
+   TestClient); свой → 200.
+2. **Цены сходятся** — то, что партнёр выставил через `/v1/partner/prices`,
+   канал и читает; проверено в том числе крестом против
+   `rate.service.get_prices`. Fallback на base_price — и с rate plan, и без
+   него.
+3. **Закрытая дата помечена** — stop sell руками и `price_day.stop_sell`
+   дают `closed: true, bookable: 0` (free при этом может быть > 0 — это
+   инвентарь, а не разрешение продавать).
+4. **Ключи** — нет ключа / неизвестный ключ → 401; пустой или слишком
+   длинный диапазон → 422.
+5. **Живьём** (поднимал на :8001): создал тариф 7770 на 3 ночи + закрыл
+   дату партнёром → канал прочитал 7770/6500-base и `closed` на нужных
+   днях; чужой тип номера → 404.
+
 ## Гейты / тесты — всё зелёное
 
-- `uv run pytest tests/ -q` — **111 passed**: 70 + 13 ical-import + 13 channel
-  + 15 outbox (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
+- `uv run pytest tests/ -q` — **126 passed**: 70 + 13 ical-import + 13 channel
+  + 15 outbox + 15 channel-read (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
   HMAC, частичный успех, dead letter, ретрай, эмит из всех точек)
   (парсер: unfolding, datetime-форма, RRULE/COUNT, отказы на unbounded RRULE и
   без DTSTART; apply: блокировка, разблокировка только своего, добивание
@@ -233,14 +278,13 @@ JWT. Ключ — partner-scoped секрет, видит только своё 
   компонентов. Что остаётся как каркас и **не** переписывается: токен-система
   Меняем содержимое палитры через `scripts/gen_palette.py` (BRAND_HUE
   и шаги рампы) + `emit_tokens.py`, не правя руками `theme.css`.
-1. **Read-API тарифов для каналов** — следующий срез (см. задачу в конце).
-2. **Rate-limit на write-API и на доставку** — webhook партнёра может
+1. **Rate-limit на write-API и на доставку** — webhook партнёра может
    утонуть в нашем всплеске событий; бэкофф есть, лимита нет.
-3. **Метрики доставки** — сколько событий в очереди, медианная задержка.
-4. **Reconciliation-отчёт** — автоматическая сверка наших броней с тем, что
+2. **Метрики доставки** — сколько событий в очереди, медианная задержка.
+3. **Reconciliation-отчёт** — автоматическая сверка наших броней с тем, что
    канал получил (по `webhook_delivery` расхождение видно руками,
    автоматизма нет).
-5. **Retention для `webhook_delivery`** — партицирование по `delivered_at`.
+4. **Retention для `webhook_delivery`** — партицирование по `delivered_at`.
 
 ### Известные долги
 - Регистрации на UI нет (бэк `POST /v1/auth/register` есть); стафф заводится в
@@ -285,28 +329,23 @@ cd web && npx tsc -b --noEmit
 Демо-входы: партнёр `demo@example.com / demo-password`, админ
 `admin@example.com / admin-password`. БД: hotel_mp (hotel_user / hotel_pass).
 
-## Задача на следующий срез: read-API тарифов для каналов
+## Задача на следующий срез: rate-limit на channel API и доставку
 
-Сейчас при изменении цены в outbox падает событие `rate.prices_changed`, но
-каналу **нечего вытянуть**: публичного read-API тарифов нет, партнерские
-эндпойнты (`/v1/partner/prices`) за JWT и отдают только свои объекты. Надо,
-чтобы канал по тому же API-ключу, которым он толкает брони, мог прочитать
-тарифы и доступность — это и есть «sync тарифов» из плана Phase 3.
+Сейчас write-API и read-API канала не ограничены по скорости, как и доставка
+webhook'ов: бэкофф при ретраях есть, а лимита на новые запросы/события нет.
+Канал, который ходит читать тарифы пачками или шлёт всплеск броней, может
+положить как наш API, так и свой собственный эндпойнт под нашими webhook'ами.
 
 Что сделать:
-1. `GET /v1/channel/rates?unit_type_id=…&date_from=…&date_to=…` (X-API-Key,
-   ownership check по партнёру — как в channel booking routes) — цены по
-   дням с fallback на `unit_type.base_price` (логика уже есть в
-   `rate/service.py:get_prices`).
-2. `GET /v1/channel/availability?unit_type_id=…&date_from=…&date_to=…` —
-   свободно ли по дням (`available - hold - sold`, закрытые даты отдельно).
-3. В полезную нагрузку события `rate.prices_changed` добавить `date_from` /
-   `date_to` (уже есть) — канал знает, какой диапазон перечитывать.
-4. Тесты: ключом demo чужой unit type → 404; свой → 200; цены сходятся с
-   тем, что выставил партнёр; закрытая дата помечена.
-5. Фронт: показать в `Webhooks.tsx`, что к подписке можно привязать фильтр
-   по событиям (уже есть) — достаточно документировать в UI, что канал
-   читает тарифы тем же ключом.
+1. Rate-limit на channel-эндпойнты (bookings/rates/availability) — например,
+   токен-bucket на ключ: X запросов/мин на ключ, 429 с `Retry-After`. На
+   чтение и запись — раздельные бакеты.
+2. Limiter на доставку: воркер отдаёт не больше N webhook'ов в секунду на
+   подписку (сейчас `deliver` идёт без ограничений, только бэкофф между
+   попытками).
+3. Метрики рядом: размер очереди, медианная задержка доставки — сейчас этого
+   нет, а для лимитов нужнаobservable-база.
+4. Тесты: превышение лимита → 429; после окна запросы снова проходят.
 
 Не трогать: инварианты брони (SERIALIZABLE + FOR UPDATE), outbox-механику
 (эмит уже стоит в нужных точках), iCal-экспорт.
