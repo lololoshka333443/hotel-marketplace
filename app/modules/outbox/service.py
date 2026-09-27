@@ -198,9 +198,7 @@ async def queue_metrics(conn: asyncpg.Connection) -> dict:
     }
 
 
-async def mark_retry(
-    conn: asyncpg.Connection, event_id: str, attempts: int, error: str
-) -> None:
+async def mark_retry(conn: asyncpg.Connection, event_id: str, attempts: int, error: str) -> None:
     """Schedule the next attempt with exponential backoff, or dead-letter."""
     row = await conn.fetchrow(
         """
@@ -231,20 +229,39 @@ async def record_delivery(
     status_code: int | None,
     error: str | None,
 ) -> None:
-    """Upsert the per-subscription delivery log."""
+    """Upsert the per-subscription delivery log.
+
+    The ledger is partitioned by delivered_at and its uniqueness is enforced
+    per partition, so ON CONFLICT on (event_id, subscription_id) is not
+    available: the pair has no index the planner can infer a conflict from.
+    Update-then-insert is safe because the claim is SKIP LOCKED — one worker
+    owns an event end to end, so the pair is only ever written from one place —
+    and the per-partition unique index still raises if a duplicate is ever
+    attempted, rather than silently keeping two rows.
+    """
+    delivery_status = "success" if ok else "failed"
+    result = await conn.execute(
+        """
+        UPDATE webhook_delivery
+        SET status = $3, status_code = $4, error = left($5, 500), delivered_at = now()
+        WHERE event_id = $1 AND subscription_id = $2
+        """,
+        event_id,
+        subscription_id,
+        delivery_status,
+        status_code,
+        error,
+    )
+    if result != "UPDATE 0":
+        return
     await conn.execute(
         """
         INSERT INTO webhook_delivery (event_id, subscription_id, status, status_code, error)
         VALUES ($1, $2, $3, $4, left($5, 500))
-        ON CONFLICT (event_id, subscription_id) DO UPDATE
-            SET status = EXCLUDED.status,
-                status_code = EXCLUDED.status_code,
-                error = EXCLUDED.error,
-                delivered_at = now()
         """,
         event_id,
         subscription_id,
-        "success" if ok else "failed",
+        delivery_status,
         status_code,
         error,
     )
@@ -262,9 +279,7 @@ async def record_delivery(
     )
 
 
-async def subscribers_for(
-    conn: asyncpg.Connection, event_id: str, event_type: str
-) -> list[dict]:
+async def subscribers_for(conn: asyncpg.Connection, event_id: str, event_type: str) -> list[dict]:
     """Subscriptions that still need this event.
 
     Joins the event's property to its owner's subscriptions, keeps the ones

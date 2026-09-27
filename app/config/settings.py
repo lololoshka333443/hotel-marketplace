@@ -59,6 +59,22 @@ class Settings(BaseSettings):
     # How often the outbox worker claims a batch. Exposed for tests.
     outbox_poll_interval_sec: int = Field(default=15)
 
+    # ----- Webhook delivery retention -----
+    # webhook_delivery is partitioned by delivered_at, one partition a month,
+    # and ages out on a schedule (app/modules/outbox/retention.py) — never in
+    # a request, never wholesale.
+    # Successes are the bulk of the table and only the proof of a delivery:
+    # the booking itself is the source of truth, so they go first.
+    webhook_delivery_success_days: int = Field(default=30)
+    # Failures are kept far longer — this is the table reconciliation reads
+    # when a partner claims a booking never arrived.
+    webhook_delivery_failed_days: int = Field(default=365)
+    # Partitions are created this many months ahead so a delivery never waits
+    # on missing DDL.
+    webhook_delivery_partition_ahead_months: int = Field(default=3)
+    # How often the retention sweep runs (also tops up future partitions).
+    retention_interval_sec: int = Field(default=3600)
+
     # ----- Payment -----
     payment_mode: str = Field(default="stub")
 

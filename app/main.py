@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env)
 
     from app.jobs.reaper import reaper_loop
+    from app.modules.outbox.retention import retention_loop
     from app.modules.outbox.worker import outbox_loop
     from app.modules.sync.poller import import_loop
     from app.utils.redis import close_redis
@@ -51,16 +52,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     reaper_task = asyncio.create_task(reaper_loop())
     import_task = asyncio.create_task(import_loop())
     outbox_task = asyncio.create_task(outbox_loop())
+    retention_task = asyncio.create_task(retention_loop())
 
     yield
 
     reaper_task.cancel()
     import_task.cancel()
     outbox_task.cancel()
+    retention_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await reaper_task
         await import_task
         await outbox_task
+        await retention_task
 
     await close_redis()
     await close_pool()
