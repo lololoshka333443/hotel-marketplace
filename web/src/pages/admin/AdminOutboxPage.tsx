@@ -62,6 +62,8 @@ export function AdminOutboxPage() {
         его — здесь видно почему и когда была последняя попытка.
       </p>
 
+      <OutboxMetricsStrip />
+
       <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Button
@@ -161,5 +163,67 @@ export function AdminOutboxPage() {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Queue health at a glance: is the queue keeping up, and is anything stuck?
+ */
+function OutboxMetricsStrip() {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ["admin-outbox-metrics"],
+    queryFn: ({ signal }) => admin.outboxMetrics(signal),
+    refetchInterval: 15_000,
+  });
+
+  if (isPending) {
+    return (
+      <p role="status" className="mt-6 text-sm text-text-secondary">
+        Загружаем метрики очереди…
+      </p>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <p className="mt-6 text-sm text-text-tertiary">
+        Метрики очереди недоступны — список событий ниже по-прежнему можно
+        смотреть.
+      </p>
+    );
+  }
+
+  const cells: { label: string; value: string }[] = [
+    { label: "В очереди", value: String(data.pending) },
+    { label: "В доставке", value: String(data.delivering) },
+    {
+      label: "Ждут ретрая",
+      value: String(data.scheduled_for_retry),
+    },
+    { label: "Ошибки", value: String(data.failed) },
+    {
+      label: "Медианная задержка",
+      value: data.median_latency_sec ? `${data.median_latency_sec} с` : "—",
+    },
+    {
+      label: "Самое старое в очереди",
+      value: data.oldest_pending_sec ? `${data.oldest_pending_sec} с` : "—",
+    },
+  ];
+
+  return (
+    <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {cells.map((cell) => (
+        <div
+          key={cell.label}
+          className="rounded-lg border border-border-default bg-surface-card p-3"
+        >
+          <dt className="text-xs text-text-tertiary">{cell.label}</dt>
+          <dd className="mt-1 text-lg font-semibold tabular-nums">
+            {cell.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

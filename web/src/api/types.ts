@@ -203,6 +203,15 @@ export interface OutboxEvent {
   delivered_fail: number;
 }
 
+export interface OutboxMetrics {
+  pending: number;
+  delivering: number;
+  failed: number;
+  scheduled_for_retry: number;
+  median_latency_sec: number;
+  oldest_pending_sec: number;
+}
+
 export interface AvailabilityResponse {
   unit_type_id: string;
   date_from: string;

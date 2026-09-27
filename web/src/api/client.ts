@@ -17,6 +17,7 @@ import type {
   IcalFeed,
   IcalSubscription,
   OutboxEvent,
+  OutboxMetrics,
   SyncResult,
   WebhookOut,
   AdminProperty,
@@ -188,6 +189,8 @@ export const admin = {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return request<OutboxEvent[]>(`/admin/outbox${qs}`, { signal });
   },
+  outboxMetrics: (signal?: AbortSignal) =>
+    request<OutboxMetrics>("/admin/outbox/metrics", { signal }),
   retryEvent: (eventId: string) =>
     request<{ retried: string; event_type: string }>(
       `/admin/outbox/${eventId}/retry`,
