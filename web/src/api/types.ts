@@ -137,6 +137,31 @@ export interface CalendarResponse {
   units: CalendarUnit[];
 }
 
+export interface IcalFeed {
+  id: string;
+  token: string;
+  enabled: boolean;
+  created_at: string;
+  url: string;
+}
+
+export interface IcalSubscription {
+  id: string;
+  url: string;
+  enabled: boolean;
+  last_synced_at: string | null;
+  last_status: "pending" | "ok" | "error";
+  last_error: string | null;
+  last_blocked: number;
+}
+
+export interface SyncResult {
+  status: "ok" | "error" | "skipped";
+  blocked?: number;
+  cleared?: number;
+  error?: string;
+}
+
 export interface AvailabilityResponse {
   unit_type_id: string;
   date_from: string;
@@ -162,4 +187,41 @@ export interface HoldConflict {
 export interface ApiError {
   detail: string;
   reason?: string;
+}
+
+// ---- admin ----------------------------------------------------------------
+
+export type AdminPropertyStatus =
+  | "draft"
+  | "pending_moderation"
+  | "published"
+  | "blocked";
+
+export interface AdminProperty {
+  id: string;
+  name: string;
+  property_type: PropertyType;
+  city: string;
+  status: AdminPropertyStatus;
+  created_at: string;
+  partner_email: string;
+}
+
+export interface CommissionPartner {
+  partner_id: string;
+  partner_email: string;
+  bookings: number;
+  gross: number;
+  commission: number;
+}
+
+export interface CommissionReport {
+  from: string | null;
+  to: string | null;
+  total: {
+    bookings: number;
+    gross: number;
+    commission: number;
+  };
+  partners: CommissionPartner[];
 }

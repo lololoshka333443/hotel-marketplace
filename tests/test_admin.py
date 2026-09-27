@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import uuid
 
 import asyncpg
+import jwt
 import pytest
 
+from app.config.settings import settings
 from app.modules.admin import report
+from app.modules.admin import service as admin_service
 from app.modules.auth import service as auth_service
 from app.modules.auth.schemas import PartnerRegisterRequest
 from app.modules.booking import service as booking_service
@@ -181,3 +185,126 @@ async def test_commission_report_date_filter(committed_conn) -> None:
     )
 
     assert rep["total"]["bookings"] == 1
+
+
+# ---------------------------------------------------------------- admin auth + moderation
+
+
+def _sha(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def _seed_admin(conn: asyncpg.Connection, email: str) -> None:
+    await conn.execute(
+        "INSERT INTO admin (email, password_hash) VALUES ($1, $2) "
+        "ON CONFLICT (email) DO NOTHING",
+        email,
+        _sha("secret123"),
+    )
+
+
+async def _property_with_status(conn: asyncpg.Connection, email: str, status: str) -> str:
+    seed = await _seed(conn, email)
+    property_id = await conn.fetchval(
+        "SELECT id::text FROM property WHERE partner_id = $1", seed["partner_id"]
+    )
+    assert property_id is not None
+    await conn.execute(
+        "UPDATE property SET status = $2 WHERE id = $1", property_id, status
+    )
+    return property_id
+
+
+@pytest.mark.asyncio
+async def test_admin_login_issues_admin_scoped_token(committed_conn) -> None:
+    await _seed_admin(committed_conn, "a1@example.com")
+
+    token = await admin_service.login_admin(committed_conn, "a1@example.com", "secret123")
+
+    payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    assert payload["scope"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rejects_wrong_password(committed_conn) -> None:
+    await _seed_admin(committed_conn, "a2@example.com")
+
+    with pytest.raises(ValueError):
+        await admin_service.login_admin(committed_conn, "a2@example.com", "wrongpass")
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rejects_partner_credentials(committed_conn) -> None:
+    """A partner account must not authenticate as staff."""
+    await _seed(committed_conn, "a3@example.com")  # registers a partner
+
+    with pytest.raises(ValueError):
+        await admin_service.login_admin(committed_conn, "a3@example.com", "secret123")
+
+
+@pytest.mark.asyncio
+async def test_moderation_approves_pending_submission(committed_conn) -> None:
+    property_id = await _property_with_status(
+        committed_conn, "a4@example.com", "pending_moderation"
+    )
+
+    row = await admin_service.set_property_status(committed_conn, property_id, "published")
+
+    assert row is not None
+    assert row["status"] == "published"
+    assert row["partner_email"] == "a4@example.com"
+
+
+@pytest.mark.asyncio
+async def test_moderation_blocks_and_unblocks(committed_conn) -> None:
+    property_id = await _property_with_status(committed_conn, "a5@example.com", "published")
+
+    blocked = await admin_service.set_property_status(committed_conn, property_id, "blocked")
+    assert blocked["status"] == "blocked"
+
+    restored = await admin_service.set_property_status(committed_conn, property_id, "published")
+    assert restored["status"] == "published"
+
+
+@pytest.mark.asyncio
+async def test_moderation_rejects_illegal_transition(committed_conn) -> None:
+    """published -> draft would silently drop a live listing; refuse it."""
+    property_id = await _property_with_status(committed_conn, "a6@example.com", "published")
+
+    with pytest.raises(ValueError):
+        await admin_service.set_property_status(committed_conn, property_id, "draft")
+
+
+@pytest.mark.asyncio
+async def test_moderation_unknown_property_returns_none(committed_conn) -> None:
+    assert await admin_service.set_property_status(
+        committed_conn, str(uuid.uuid4()), "published"
+    ) is None
+
+
+@pytest.mark.asyncio
+async def test_admin_property_list_orders_queue_first(committed_conn) -> None:
+    """pending_moderation surfaces before published, regardless of age."""
+    await _property_with_status(committed_conn, "a7@example.com", "published")
+    await _property_with_status(committed_conn, "a8@example.com", "pending_moderation")
+    await _property_with_status(committed_conn, "a9@example.com", "draft")
+
+    rows = await admin_service.list_properties_for_admin(committed_conn)
+
+    assert [r["status"] for r in rows] == [
+        "pending_moderation",
+        "published",
+        "draft",
+    ]
+    assert all("partner_email" in r for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_admin_property_list_filters_by_status(committed_conn) -> None:
+    await _property_with_status(committed_conn, "b1@example.com", "published")
+    await _property_with_status(committed_conn, "b2@example.com", "blocked")
+
+    rows = await admin_service.list_properties_for_admin(committed_conn, status="blocked")
+
+    assert len(rows) == 1
+    assert rows[0]["status"] == "blocked"

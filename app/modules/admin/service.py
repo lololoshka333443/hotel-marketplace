@@ -1,0 +1,114 @@
+"""Admin service: staff authentication + property moderation.
+
+Moderation model (Phase 1): partners may self-publish (tested behavior), so the
+admin queue is oversight, not a gate. Admins see every property by status and
+can block / unblock; pending_moderation is the formal submission state that
+'approve' resolves. Commission is read-only here - it is snapshotted at
+confirmation time and never recomputed (see report.py).
+"""
+
+from __future__ import annotations
+
+import asyncpg
+
+from app.modules.auth.jwt import create_access_token
+from app.utils.logger import get_logger
+
+log = get_logger(__name__)
+
+PropertyStatus = str
+
+
+def _hash_password(raw: str) -> str:
+    import hashlib
+
+    # Same Slice-0 placeholder as partner auth: swap for argon2 before real users.
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def login_admin(conn: asyncpg.Connection, email: str, password: str) -> str:
+    """Verify staff credentials, return an admin-scoped JWT."""
+    row = await conn.fetchrow(
+        "SELECT id::text FROM admin WHERE email = $1 AND password_hash = $2",
+        email,
+        _hash_password(password),
+    )
+    if row is None:
+        raise ValueError("invalid credentials")
+    log.info("admin-login", admin_id=row["id"])
+    return create_access_token(row["id"], scope="admin")
+
+
+async def list_properties_for_admin(
+    conn: asyncpg.Connection, status: str | None = None
+) -> list[dict]:
+    """Every property with its owner's email - the moderation queue."""
+    args: list = []
+    where = ""
+    if status:
+        args.append(status)
+        where = "WHERE p.status = $1"
+    rows = await conn.fetch(
+        f"""
+        SELECT p.id::text              AS id,
+               p.name                   AS name,
+               p.property_type          AS property_type,
+               p.city                   AS city,
+               p.status                 AS status,
+               p.created_at             AS created_at,
+               pt.email                 AS partner_email
+        FROM property p
+        JOIN partner  pt ON pt.id = p.partner_id
+        {where}
+        ORDER BY
+            CASE p.status
+                WHEN 'pending_moderation' THEN 0
+                WHEN 'published'          THEN 1
+                WHEN 'draft'              THEN 2
+                ELSE                           3
+            END,
+            p.created_at DESC
+        """,
+        *args,
+    )
+    return [dict(r) for r in rows]
+
+
+# Allowed transitions under admin control. Anything else is a client error.
+_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"published", "blocked"},
+    "pending_moderation": {"published", "draft", "blocked"},
+    "published": {"blocked"},
+    "blocked": {"published"},
+}
+
+
+async def set_property_status(
+    conn: asyncpg.Connection, property_id: str, new_status: str
+) -> dict | None:
+    """Move a property to new_status. Returns the row, or None if not found.
+
+    Raises ValueError on an illegal transition so the route can answer 409
+    instead of silently 'succeeding'.
+    """
+    current = await conn.fetchval(
+        "SELECT status FROM property WHERE id = $1", property_id
+    )
+    if current is None:
+        return None
+    if new_status not in _TRANSITIONS.get(current, set()):
+        raise ValueError(f"illegal transition: {current} -> {new_status}")
+
+    row = await conn.fetchrow(
+        """
+        UPDATE property p SET status = $2 WHERE p.id = $1
+        RETURNING p.id::text, p.name, p.property_type, p.city, p.status,
+                  p.created_at,
+                  (SELECT pt.email FROM partner pt WHERE pt.id = p.partner_id)
+                      AS partner_email
+        """,
+        property_id,
+        new_status,
+    )
+    log.info("property-moderated", property_id=property_id, status=new_status)
+    return dict(row) if row else None

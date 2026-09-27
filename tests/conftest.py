@@ -26,7 +26,8 @@ _CLEANUP = (
     "DELETE FROM inventory_day; "
     "DELETE FROM unit_type; "
     "DELETE FROM property; "
-    "DELETE FROM partner;"
+    "DELETE FROM partner; "
+    "DELETE FROM admin;"
 )
 
 

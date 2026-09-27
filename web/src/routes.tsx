@@ -8,6 +8,10 @@ import { ComponentsPage } from "@/pages/ComponentsPage";
 import { PartnerLayout } from "@/pages/partner/PartnerLayout";
 import { PartnerDashboardPage } from "@/pages/partner/PartnerDashboardPage";
 import { PartnerCalendarPage } from "@/pages/partner/PartnerCalendarPage";
+import { AdminLayout } from "@/pages/admin/AdminLayout";
+import { AdminLoginPage } from "@/pages/admin/AdminLoginPage";
+import { AdminReportsPage } from "@/pages/admin/AdminReportsPage";
+import { AdminModerationPage } from "@/pages/admin/AdminModerationPage";
 import type { RouteObject } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
@@ -31,6 +35,15 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <PartnerDashboardPage /> },
           { path: "calendar", element: <PartnerCalendarPage /> },
+        ],
+      },
+      { path: "admin/login", element: <AdminLoginPage /> },
+      {
+        path: "admin",
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <AdminReportsPage /> },
+          { path: "moderation", element: <AdminModerationPage /> },
         ],
       },
     ],

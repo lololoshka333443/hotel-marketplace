@@ -44,15 +44,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env)
 
     from app.jobs.reaper import reaper_loop
+    from app.modules.sync.poller import import_loop
     from app.utils.redis import close_redis
 
     reaper_task = asyncio.create_task(reaper_loop())
+    import_task = asyncio.create_task(import_loop())
 
     yield
 
     reaper_task.cancel()
+    import_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await reaper_task
+        await import_task
 
     await close_redis()
     await close_pool()
@@ -76,6 +80,7 @@ def create_app() -> FastAPI:
     from app.modules.property.routes import router as property_router
     from app.modules.property.unit_type_routes import router as unit_type_router
     from app.modules.rate.routes import router as rate_router
+    from app.modules.sync.routes import router as sync_router
 
     app.include_router(auth_router)
     app.include_router(property_router)
@@ -85,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(payment_router)
     app.include_router(rate_router)
     app.include_router(admin_router)
+    app.include_router(sync_router)
 
     # ---- single-app: serve the built frontend from one origin -------------
     # Static assets first (exact paths), then the SPA fallback so any deep

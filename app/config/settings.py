@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     app_env: str = Field(default="local")
     app_host: str = Field(default="0.0.0.0")
     app_port: int = Field(default=8000)
+    # Public origin used to build URLs handed to partners (iCal feeds, links).
+    app_base_url: str = Field(default="http://localhost:8000")
     log_level: str = Field(default="info")
 
     # ----- Database -----
@@ -38,6 +40,10 @@ class Settings(BaseSettings):
 
     # ----- Booking core -----
     hold_ttl_min: int = Field(default=15)
+
+    # ----- Channel sync -----
+    # How often the iCal importer revisits a subscribed calendar.
+    ical_sync_interval_sec: int = Field(default=900)
 
     # ----- Payment -----
     payment_mode: str = Field(default="stub")

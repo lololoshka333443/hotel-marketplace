@@ -11,6 +11,12 @@ import type {
   AvailabilityResponse,
   BookingOut,
   CalendarResponse,
+  CommissionReport,
+  IcalFeed,
+  IcalSubscription,
+  SyncResult,
+  AdminProperty,
+  AdminPropertyStatus,
   HoldConflict,
   HoldRequest,
   PropertyOut,
@@ -55,7 +61,7 @@ function toIsoDate(value: string): string {
 async function request<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     body?: unknown;
     signal?: AbortSignal;
     headers?: Record<string, string>;
@@ -144,7 +150,37 @@ export const bookings = {
     request<BookingOut>(`/bookings/${id}/cancel`, { method: "POST" }),
 };
 
-// ---- partner --------------------------------------------------------------
+// ---- admin ----------------------------------------------------------------
+
+export const admin = {
+  login: (email: string, password: string) =>
+    request<TokenResponse>("/admin/login", {
+      method: "POST",
+      body: { email, password },
+    }),
+  report: (from: string | null, to: string | null, signal?: AbortSignal) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("date_from", from);
+    if (to) qs.set("date_to", to);
+    const tail = qs.toString();
+    return request<CommissionReport>(
+      `/admin/reports/commission${tail ? `?${tail}` : ""}`,
+      { signal },
+    );
+  },
+  properties: (status: string | null, signal?: AbortSignal) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<AdminProperty[]>(
+      `/admin/properties${qs}`,
+      { signal },
+    );
+  },
+  setStatus: (propertyId: string, status: AdminPropertyStatus) =>
+    request<AdminProperty>(`/admin/properties/${propertyId}/status`, {
+      method: "PATCH",
+      body: { status },
+    }),
+};
 
 export const partner = {
   listProperties: () => request<PropertyOut[]>("/partner/properties"),
@@ -162,4 +198,38 @@ export const partner = {
         propertyId,
       )}&date_from=${toIsoDate(dateFrom)}&date_to=${toIsoDate(dateTo)}`,
     ),
+  icalFeed: {
+    get: (unitTypeId: string, signal?: AbortSignal) =>
+      request<IcalFeed>(
+        `/partner/unit-types/${unitTypeId}/ical-feed`,
+        { signal },
+      ),
+    rotate: (unitTypeId: string) =>
+      request<IcalFeed>(
+        `/partner/unit-types/${unitTypeId}/ical-feed`,
+        { method: "POST" },
+      ),
+  },
+  icalImport: {
+    get: (unitTypeId: string, signal?: AbortSignal) =>
+      request<IcalSubscription>(
+        `/partner/unit-types/${unitTypeId}/ical-import`,
+        { signal },
+      ),
+    set: (unitTypeId: string, url: string) =>
+      request<IcalSubscription>(
+        `/partner/unit-types/${unitTypeId}/ical-import`,
+        { method: "PUT", body: { url } },
+      ),
+    remove: (unitTypeId: string) =>
+      request<{ deleted: string }>(
+        `/partner/unit-types/${unitTypeId}/ical-import`,
+        { method: "DELETE" },
+      ),
+    sync: (unitTypeId: string) =>
+      request<SyncResult>(
+        `/partner/unit-types/${unitTypeId}/ical-import/sync`,
+        { method: "POST" },
+      ),
+  },
 };

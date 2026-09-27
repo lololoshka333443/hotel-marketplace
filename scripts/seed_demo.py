@@ -25,6 +25,9 @@ log = get_logger(__name__)
 PARTNER_EMAIL = "demo@example.com"
 PARTNER_PASSWORD = "demo-password"
 
+ADMIN_EMAIL = "admin@example.com"
+ADMIN_PASSWORD = "admin-password"
+
 # Room photos (optimized WebP). Used as examples of what a partner uploads.
 PHOTOS = {
     1: ["/rooms/1/IMG_0062.webp", "/rooms/1/IMG_0064.webp", "/rooms/1/IMG_0077.webp"],
@@ -152,7 +155,22 @@ async def main() -> int:
                             total_units,
                         )
                 log.info("property-seeded", name=property_def["name"], id=property_id)
-            print(f"seeded: partner {PARTNER_EMAIL} / {len(PROPERTIES)} properties")
+
+            # Staff account for the admin panel (reports + moderation).
+            await conn.execute(
+                """
+                INSERT INTO admin (email, password_hash)
+                VALUES ($1, $2)
+                ON CONFLICT (email) DO NOTHING
+                """,
+                ADMIN_EMAIL,
+                __import__("hashlib").sha256(ADMIN_PASSWORD.encode()).hexdigest(),
+            )
+
+            print(
+                f"seeded: partner {PARTNER_EMAIL} / {len(PROPERTIES)} properties, "
+                f"admin {ADMIN_EMAIL}"
+            )
     finally:
         await close_pool()
     return 0
