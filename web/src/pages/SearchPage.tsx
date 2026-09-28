@@ -31,14 +31,22 @@ export function SearchPage() {
         Крым · {filtered.length} объектов
       </p>
 
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Поиск: город, название…"
-        aria-label="Поиск жилья"
-        className="mt-6 h-11 w-full rounded-button border border-border-default bg-surface-card px-4 text-base text-text-primary placeholder:text-text-tertiary focus:border-border-focus"
-      />
+      <div className="mt-6">
+        <label
+          htmlFor="search-query"
+          className="block text-sm font-medium text-text-primary"
+        >
+          Поиск жилья
+        </label>
+        <input
+          id="search-query"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Город, название…"
+          className="mt-2 h-11 w-full rounded-button border border-border-strong bg-surface-card px-4 text-base text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none focus-visible:shadow-focus-ring"
+        />
+      </div>
 
       {isPending ? (
         <p role="status" className="mt-12 text-text-secondary">

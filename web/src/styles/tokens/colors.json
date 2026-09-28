@@ -355,7 +355,8 @@
       },
       "tertiary": {
         "$type": "color",
-        "$value": "{primitive.neutral.400}"
+        "$value": "#74777a",
+        "$description": "derived: lightest neutral >= 4.5:1 on white"
       },
       "disabled": {
         "$type": "color",

@@ -66,6 +66,29 @@ def contrast(fg: str, bg: str) -> float:
     return Color(fg).contrast(bg, method="wcag21")
 
 
+# Fine print and placeholders are text, so a text grade below AA on the page
+# surface is not a design choice the palette gets to make.
+TEXT_CONTRAST_MIN = 4.5
+
+
+def text_grade(bg: str, need: float = TEXT_CONTRAST_MIN) -> str:
+    """The lightest neutral that still holds `need` contrast on a light `bg`.
+
+    tertiary used to be a hand-picked shade (neutral.400, 2.30:1 on white) and
+    every brand re-skin could silently reintroduce an unreadable fine print.
+    This derives it by binary search on lightness instead, so the value is
+    provably at the AA boundary whatever the brand hue does to the ramp.
+    """
+    lo, hi = 0.20, 0.98  # OKLCH lightness; on white, darker = more contrast
+    for _ in range(48):
+        mid = (lo + hi) / 2
+        if contrast(oklch_hex(mid, NEUTRAL_CHROMA, NEUTRAL_HUE), bg) >= need:
+            lo = mid  # passes — try lighter, the boundary is just above
+        else:
+            hi = mid
+    return oklch_hex(lo, NEUTRAL_CHROMA, NEUTRAL_HUE)
+
+
 def build() -> dict:
     return {
         "blue": ramp(BRAND_HUE, BRAND_CHROMA),
@@ -85,6 +108,7 @@ def report(p: dict) -> int:
         # (fg, bg, min, label)
         (n["900"], WHITE, 4.5, "body text primary on white"),
         (n["600"], WHITE, 4.5, "secondary text on white"),
+        (text_grade(WHITE), WHITE, 4.5, "tertiary text on white (derived)"),
         (b["600"], WHITE, 4.5, "primary action bg, white text on it"),
         # blue.600 is the text/link/focus token; blue.500 is reserved for the
         # focus RING (3:1 UI rule only) — so 500 is checked as UI, not as text.
@@ -96,6 +120,7 @@ def report(p: dict) -> int:
         # dark mode
         (n["50"], n["950"], 4.5, "dark text primary on dark page"),
         (n["400"], n["950"], 4.5, "dark secondary text on dark page"),
+        (n["500"], n["950"], 4.5, "dark tertiary text on dark page"),
         (b["400"], n["950"], 4.5, "dark link blue.400 on dark page"),
         (b["600"], WHITE, 4.5, "dark primary bg w/ white text"),
         (n["500"], n["950"], 3.0, "dark border.strong on dark page"),
@@ -117,6 +142,7 @@ def report(p: dict) -> int:
     print(f"  action.primary-hover blue.700      {b['700']}")
     print(f"  text.primary         neutral.900   {n['900']}")
     print(f"  text.secondary       neutral.600   {n['600']}")
+    print(f"  text.tertiary        derived       {text_grade(WHITE)}  (>=4.5:1 on white)")
     print(f"  surface.sunken       neutral.50    {n['50']}")
     print(f"  border.default       neutral.200   {n['200']}")
     print(f"  border.strong        neutral.500   {n['500']}")

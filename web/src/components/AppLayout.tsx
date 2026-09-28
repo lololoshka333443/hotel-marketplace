@@ -1,10 +1,20 @@
 import { Link, Outlet } from "react-router-dom";
+import { Moon, Sun } from "lucide-react";
 
 import { getToken, setToken } from "@/api/client";
+import { useTheme } from "@/hooks/useTheme";
 
 export function AppLayout() {
+  const { theme, toggle } = useTheme();
+
   return (
     <div className="flex min-h-screen flex-col bg-surface-page text-text-primary font-sans">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-modal focus:rounded-button focus:bg-action-primary focus:px-4 focus:py-2 focus:text-text-on-action focus:shadow-overlay"
+      >
+        К основному содержимому
+      </a>
       <header className="border-b border-border-default bg-surface-card">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
@@ -20,6 +30,20 @@ export function AppLayout() {
             >
               Номера
             </Link>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={
+                theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"
+              }
+              className="inline-flex size-9 items-center justify-center rounded-button text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary focus-visible:shadow-focus-ring"
+            >
+              {theme === "dark" ? (
+                <Sun className="size-5" aria-hidden="true" />
+              ) : (
+                <Moon className="size-5" aria-hidden="true" />
+              )}
+            </button>
             {getToken() ? (
               <>
                 <Link
@@ -50,7 +74,7 @@ export function AppLayout() {
           </nav>
         </div>
       </header>
-      <main className="flex-1">
+      <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
         <Outlet />
       </main>
       <footer className="border-t border-border-default bg-surface-card py-8 text-sm text-text-secondary">

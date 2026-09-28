@@ -16,9 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gen_palette import (
     BLACK,
     SHADES,
+    TEXT_CONTRAST_MIN,
     WHITE,
     build,
     contrast,
+    text_grade,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -87,7 +89,12 @@ def build_colors_json(p: dict) -> dict:
             "text": {
                 "primary": ref("primitive.neutral.900"),
                 "secondary": ref("primitive.neutral.600"),
-                "tertiary": ref("primitive.neutral.400"),
+                # Not a ramp shade: derived to the AA boundary on white, because
+                # fine print and placeholders are text and 2.30:1 is not text.
+                "tertiary": color(
+                    text_grade(WHITE),
+                    f"derived: lightest neutral >= {TEXT_CONTRAST_MIN}:1 on white",
+                ),
                 "disabled": ref("primitive.neutral.300"),
                 "on-action": ref("primitive.white"),
                 "link": ref("primitive.blue.600"),
@@ -197,8 +204,75 @@ def css_var(name: str, value: str) -> str:
     return f"  --{name}: {value};"
 
 
+def _dark_block(p: dict) -> list[str]:
+    """Dark-theme overrides, emitted for both the explicit switch and the OS.
+
+    One source for both, so the two paths cannot drift apart.
+    """
+    b, n = p["blue"], p["neutral"]
+
+    def on_page(fg: str) -> str:
+        return f"  /* {contrast(fg, n['950']):.2f}:1 */"
+
+    return [
+        "  /* surfaces */",
+        css_var("t-surface-page", n["950"]),
+        css_var("t-surface-card", n["900"]),
+        css_var("t-surface-raised", n["800"]),
+        css_var("t-surface-sunken", BLACK),
+        "",
+        "  /* text */",
+        css_var("t-text-primary", n["50"]) + on_page(n["50"]),
+        css_var("t-text-secondary", n["400"]) + on_page(n["400"]),
+        css_var("t-text-tertiary", n["500"]) + on_page(n["500"]),
+        css_var("t-text-disabled", n["600"]),
+        css_var("t-text-on-action", WHITE),
+        css_var("t-text-link", b["400"])
+        + f"  /* lightened: {contrast(b['400'], n['950']):.2f}:1 */",
+        css_var("t-text-link-hover", b["300"]),
+        "",
+        "  /* action */",
+        css_var("t-action-primary", b["600"])
+        + f"  /* white = {contrast(WHITE, b['600']):.2f}:1, dark-safe */",
+        css_var("t-action-primary-hover", b["700"]),
+        css_var("t-action-secondary", n["800"]),
+        css_var("t-action-secondary-hover", n["700"]),
+        css_var("t-action-destructive", p["red"]["600"]),
+        css_var("t-action-destructive-hover", p["red"]["700"]),
+        "",
+        "  /* borders */",
+        css_var("t-border-default", n["800"]),
+        css_var("t-border-strong", n["500"]) + on_page(n["500"]),
+        css_var("t-border-focus", b["500"]),
+        css_var("t-border-error", p["red"]["500"]),
+        "",
+        "  /* feedback (darkened surfaces, lightened text) */",
+        css_var("t-feedback-success-bg", p["green"]["900"]),
+        css_var("t-feedback-success-text", p["green"]["300"]),
+        css_var("t-feedback-warning-bg", p["amber"]["900"]),
+        css_var("t-feedback-warning-text", p["amber"]["300"]),
+        css_var("t-feedback-error-bg", p["red"]["900"]),
+        css_var("t-feedback-error-text", p["red"]["400"]),
+        css_var("t-feedback-info-bg", b["900"]),
+        css_var("t-feedback-info-text", b["300"]),
+        "",
+        "  /* interactive */",
+        css_var("t-interactive-hover", "rgba(255, 255, 255, 0.06)"),
+        css_var("t-interactive-active", "rgba(255, 255, 255, 0.10)"),
+        css_var("t-interactive-selected-bg", b["900"]),
+        css_var("t-interactive-selected-border", b["700"]),
+        css_var("t-scrim", "rgba(0, 0, 0, 0.7)"),
+        css_var("t-shadow-focus-ring", f"0 0 0 2px {n['950']}, 0 0 0 4px {b['500']}"),
+        "",
+        "    /* native controls + scrollbars follow the theme */",
+        "    color-scheme: dark;",
+        "",
+    ]
+
+
 def build_theme_css(p: dict) -> str:
     b, n = p["blue"], p["neutral"]
+    tertiary = text_grade(WHITE)
 
     def pair(fg: str, bg: str) -> float:
         return contrast(fg, bg)
@@ -227,7 +301,7 @@ def build_theme_css(p: dict) -> str:
         "  /* text */",
         css_var("t-text-primary", n["900"]) + f"  /* {pair(n['900'], WHITE):.2f}:1 */",
         css_var("t-text-secondary", n["600"]) + f"  /* {pair(n['600'], WHITE):.2f}:1 */",
-        css_var("t-text-tertiary", n["400"]),
+        css_var("t-text-tertiary", tertiary) + f"  /* {pair(tertiary, WHITE):.2f}:1, derived */",
         css_var("t-text-disabled", n["300"]),
         css_var("t-text-on-action", WHITE),
         css_var("t-text-link", b["600"]),
@@ -315,6 +389,8 @@ def build_theme_css(p: dict) -> str:
         ),
         css_var("t-z-modal", "50"),
         "",
+        "  /* native controls + scrollbars follow the theme */",
+        "  color-scheme: light;",
         "  /* breakpoints (mobile-first) */",
         css_var("t-bp-sm", "640px"),
         css_var("t-bp-md", "768px"),
@@ -324,53 +400,16 @@ def build_theme_css(p: dict) -> str:
         "}",
         "",
         ':root[data-theme="dark"] {',
-        "  /* surfaces */",
-        css_var("t-surface-page", n["950"]),
-        css_var("t-surface-card", n["900"]),
-        css_var("t-surface-raised", n["800"]),
-        css_var("t-surface-sunken", BLACK),
+        *_dark_block(p),
+        "}",
         "",
-        "  /* text */",
-        css_var("t-text-primary", n["50"]) + f"  /* {pair(n['50'], n['950']):.2f}:1 */",
-        css_var("t-text-secondary", n["400"]) + f"  /* {pair(n['400'], n['950']):.2f}:1 */",
-        css_var("t-text-tertiary", n["500"]),
-        css_var("t-text-disabled", n["600"]),
-        css_var("t-text-on-action", WHITE),
-        css_var("t-text-link", b["400"]) + f"  /* lightened: {pair(b['400'], n['950']):.2f}:1 */",
-        css_var("t-text-link-hover", b["300"]),
-        "",
-        "  /* action */",
-        css_var("t-action-primary", b["600"])
-        + f"  /* white = {pair(WHITE, b['600']):.2f}:1, dark-safe */",
-        css_var("t-action-primary-hover", b["700"]),
-        css_var("t-action-secondary", n["800"]),
-        css_var("t-action-secondary-hover", n["700"]),
-        css_var("t-action-destructive", p["red"]["600"]),
-        css_var("t-action-destructive-hover", p["red"]["700"]),
-        "",
-        "  /* borders */",
-        css_var("t-border-default", n["800"]),
-        css_var("t-border-strong", n["500"]) + f"  /* {pair(n['500'], n['950']):.2f}:1 */",
-        css_var("t-border-focus", b["500"]),
-        css_var("t-border-error", p["red"]["500"]),
-        "",
-        "  /* feedback (darkened surfaces, lightened text) */",
-        css_var("t-feedback-success-bg", p["green"]["900"]),
-        css_var("t-feedback-success-text", p["green"]["300"]),
-        css_var("t-feedback-warning-bg", p["amber"]["900"]),
-        css_var("t-feedback-warning-text", p["amber"]["300"]),
-        css_var("t-feedback-error-bg", p["red"]["900"]),
-        css_var("t-feedback-error-text", p["red"]["400"]),
-        css_var("t-feedback-info-bg", b["900"]),
-        css_var("t-feedback-info-text", b["300"]),
-        "",
-        "  /* interactive */",
-        css_var("t-interactive-hover", "rgba(255, 255, 255, 0.06)"),
-        css_var("t-interactive-active", "rgba(255, 255, 255, 0.10)"),
-        css_var("t-interactive-selected-bg", b["900"]),
-        css_var("t-interactive-selected-border", b["700"]),
-        css_var("t-scrim", "rgba(0, 0, 0, 0.7)"),
-        css_var("t-shadow-focus-ring", f"0 0 0 2px {n['950']}, 0 0 0 4px {b['500']}"),
+        "/* OS dark mode. `data-theme` (above) is the explicit switch and wins when",
+        " * set; without it we follow prefers-color-scheme, so a phone in dark mode",
+        " * gets the dark theme with no JS in the critical path. */",
+        "@media (prefers-color-scheme: dark) {",
+        '  :root:not([data-theme="light"]) {',
+        *(f"  {line}" if line else line for line in _dark_block(p)),
+        "  }",
         "}",
         "",
         "@media (prefers-reduced-motion: reduce) {",

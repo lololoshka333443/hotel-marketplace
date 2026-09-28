@@ -11,6 +11,19 @@
       href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
     <title>Жильё в Крыму — бронирование онлайн</title>
+    <script>
+      // Theme before paint, to avoid a light->dark flash. The user's explicit
+      // choice wins; otherwise the OS preference decides. Inline so it runs
+      // synchronously, before the React bundle.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var theme = stored === "light" || stored === "dark" ? stored : dark ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
