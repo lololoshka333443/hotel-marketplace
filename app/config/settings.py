@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     # How often the outbox worker claims a batch. Exposed for tests.
     outbox_poll_interval_sec: int = Field(default=15)
 
+    # ----- Outbox backlog limit -----
+    # A mass operation (bulk price load, an iCal import of a whole season) can
+    # throw thousands of events at the queue; the worker drains it at
+    # webhook_rate_per_sec per subscription. Beyond this depth, low-priority
+    # events are shed instead of queued — see app/modules/outbox/backlog.py.
+    # Bookings are never subject to this.
+    outbox_max_pending: int = Field(default=2000)
+    # How deep the queue has to be before the admin strip flags it as falling
+    # behind, in seconds since the oldest pending event.
+    outbox_lag_alert_sec: int = Field(default=300)
+
     # ----- Webhook delivery retention -----
     # webhook_delivery is partitioned by delivered_at, one partition a month,
     # and ages out on a schedule (app/modules/outbox/retention.py) — never in

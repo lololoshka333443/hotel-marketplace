@@ -17,6 +17,7 @@ from typing import Any
 
 import asyncpg
 
+from app.config.settings import settings
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -49,19 +50,38 @@ async def emit(
     """Append an outbox row. Caller must be inside the business transaction.
 
     A failure here must not break the business operation: the event is
-    best-effort, the booking is the source of truth.
+    best-effort, the booking is the source of truth. That also covers the
+    backlog limit — a bulk event past the limit is shed on purpose rather than
+    queued (see backlog.py), and its drop is counted instead of remembered.
     """
+    from app.config.settings import settings
+    from app.modules.outbox import backlog
+
+    priority = backlog.PRIORITY_BOOKING if aggregate == "booking" else backlog.PRIORITY_BULK
+    limit = settings.outbox_max_pending
     try:
+        if not await backlog.admit(conn, priority=priority, limit=limit):
+            await backlog.count_shed(conn, aggregate=aggregate, event_type=event_type)
+            log.warning(
+                "outbox-shed",
+                event_type=event_type,
+                aggregate=aggregate,
+                limit=limit,
+            )
+            return
+
         await conn.execute(
             """
-            INSERT INTO outbox_event (aggregate, aggregate_id, event_type, payload, property_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO outbox_event
+                (aggregate, aggregate_id, event_type, payload, property_id, priority)
+            VALUES ($1, $2, $3, $4, $5, $6)
             """,
             aggregate,
             aggregate_id,
             event_type,
             json.dumps(payload, default=str),
             property_id,
+            priority,
         )
     except Exception as exc:
         # Never let a logging failure roll back a booking.
@@ -98,7 +118,7 @@ async def claim_due(conn: asyncpg.Connection, limit: int = 50) -> list[dict]:
         WITH due AS (
             SELECT id FROM outbox_event
             WHERE status = 'pending' AND next_attempt_at <= now()
-            ORDER BY happened_at
+            ORDER BY priority, next_attempt_at, happened_at
             LIMIT $1
             FOR UPDATE SKIP LOCKED
         )
@@ -106,13 +126,19 @@ async def claim_due(conn: asyncpg.Connection, limit: int = 50) -> list[dict]:
         SET status = 'delivering', claimed_at = now()
         WHERE id IN (SELECT id FROM due)
         RETURNING id::text, aggregate, aggregate_id, event_type, payload,
-                  attempts, max_attempts, property_id::text, happened_at
+                  attempts, max_attempts, property_id::text, happened_at,
+                  priority, next_attempt_at
         """,
         limit,
     )
+    # The UPDATE re-scans the table, so RETURNING comes back in the scan's
+    # order, not the CTE's. Claiming is still correct either way (the batch is
+    # the same set of rows), but a booking must leave first, so re-apply the
+    # queue order here.
+    rows.sort(key=lambda r: (r["priority"], r["next_attempt_at"], r["happened_at"]))
     out = []
     for r in rows:
-        event = dict(r)
+        event = {k: v for k, v in dict(r).items() if k not in ("priority", "next_attempt_at")}
         # asyncpg returns jsonb as text; deliver it as a real object.
         if isinstance(event["payload"], str):
             event["payload"] = json.loads(event["payload"])
@@ -185,7 +211,8 @@ async def queue_metrics(conn: asyncpg.Connection) -> dict:
              WHERE status = 'published'
                AND published_at > now() - interval '1 hour')                AS median_latency_sec,
             (SELECT coalesce(extract(EPOCH FROM (now() - min(happened_at)))::int, 0)
-             FROM outbox_event WHERE status = 'pending')                    AS oldest_pending_sec
+             FROM outbox_event WHERE status = 'pending')                    AS oldest_pending_sec,
+            (SELECT coalesce(sum(n), 0)::int FROM outbox_shed_counter)      AS shed_total
         """,
     )
     return {
@@ -195,6 +222,12 @@ async def queue_metrics(conn: asyncpg.Connection) -> dict:
         "scheduled_for_retry": row["scheduled"],
         "median_latency_sec": float(row["median_latency_sec"]),
         "oldest_pending_sec": int(row["oldest_pending_sec"]),
+        # The configured limits, so the UI draws one line instead of guessing
+        # at one: how deep the queue may grow before bulk events are shed, and
+        # how old a pending event may be before the strip flags it.
+        "depth_limit": settings.outbox_max_pending,
+        "lag_alert_sec": settings.outbox_lag_alert_sec,
+        "shed_total": int(row["shed_total"]),
     }
 
 
