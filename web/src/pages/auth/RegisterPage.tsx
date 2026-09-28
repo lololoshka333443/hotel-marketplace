@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Navigate, Link, useLocation } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiException, auth, getToken, setToken } from "@/api/client";
 import { Button } from "@/components/ui/Button";
@@ -9,12 +9,15 @@ import { PageShell } from "@/components/PageShell";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 /**
- * Partner self-registration. On success the app reloads into the cabinet: the
- * token lands in localStorage and the guarded queries re-run authorized.
+ * Partner self-registration. On success the token lands in localStorage and
+ * the query cache is cleared, then the app routes into the cabinet — no full
+ * page reload.
  */
 export function RegisterPage() {
   useDocumentTitle("Регистрация партнёра");
   const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Where to send the partner once the account exists.
   const from = (location.state as { from?: string } | null)?.from ?? "/partner";
@@ -29,8 +32,9 @@ export function RegisterPage() {
     onSuccess: (data) => {
       setToken(data.access_token);
       setError(null);
-      // Full navigation so the app boots with the token in place.
-      window.location.replace(from);
+      // Drop anything fetched while anonymous, then route client-side.
+      queryClient.clear();
+      navigate(from, { replace: true });
     },
     onError: (exc) => {
       if (exc instanceof ApiException && exc.status === 409) {

@@ -4,6 +4,7 @@ import { BedDouble, Building2, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { partner, getToken } from "@/api/client";
+import { humanError } from "@/utils/errors";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -259,9 +260,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         </label>
         {create.isError ? (
           <p role="alert" className="text-sm text-feedback-error-text">
-            {create.error instanceof Error
-              ? create.error.message
-              : "Не удалось создать объект. Попробуйте ещё раз."}
+            {humanError(create.error, "Не удалось создать объект. Попробуйте ещё раз.")}
           </p>
         ) : null}
         <div className="flex justify-end gap-2 pt-2">

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Navigate, useLocation } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { admin, getToken, setToken } from "@/api/client";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,8 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 export function AdminLoginPage() {
   useDocumentTitle("Вход для администратора");
   const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const from =
     (location.state as { from?: string } | null)?.from ?? "/admin";
@@ -25,7 +27,9 @@ export function AdminLoginPage() {
     onSuccess: (data) => {
       setToken(data.access_token);
       setError(null);
-      window.location.replace(from);
+      // Anonymous cache must not survive the token.
+      queryClient.clear();
+      navigate(from, { replace: true });
     },
     onError: () =>
       setError("Неверный email или пароль. Попробуйте ещё раз."),

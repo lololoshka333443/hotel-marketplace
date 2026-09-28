@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CalendarDays } from "lucide-react";
 
 import { bookings, availability } from "@/api/client";
+import { humanError } from "@/utils/errors";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { AvailabilityDay } from "@/api/types";
@@ -179,9 +180,7 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
             role="alert"
             className="mt-3 text-sm text-feedback-error-text"
           >
-            {hold.error instanceof Error
-              ? hold.error.message
-              : "Не удалось забронировать. Попробуйте ещё раз."}
+            {humanError(hold.error, "Не удалось забронировать. Попробуйте ещё раз.")}
           </p>
         ) : null}
         <p className="mt-3 text-center text-xs text-text-secondary">

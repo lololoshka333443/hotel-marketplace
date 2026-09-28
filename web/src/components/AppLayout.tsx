@@ -1,11 +1,14 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { Moon, Sun } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getToken, setToken } from "@/api/client";
 import { useTheme } from "@/hooks/useTheme";
 
 export function AppLayout() {
   const { theme, toggle } = useTheme();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-page text-text-primary font-sans">
@@ -56,7 +59,9 @@ export function AppLayout() {
                   type="button"
                   onClick={() => {
                     setToken(null);
-                    window.location.replace("/");
+                    // Anonymous cache must not survive the token.
+                    queryClient.clear();
+                    navigate("/", { replace: true });
                   }}
                   className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
                 >

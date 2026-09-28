@@ -1,4 +1,5 @@
-import { Link, Outlet, Navigate } from "react-router-dom";
+import { Link, Outlet, Navigate, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getToken, setToken } from "@/api/client";
 
@@ -8,6 +9,9 @@ import { getToken, setToken } from "@/api/client";
  * two cabinets never mix.
  */
 export function AdminLayout() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   // The login page lives at /admin/login (outside this layout) to avoid a
   // redirect loop; it sends staff back here on success.
   if (!getToken()) {
@@ -48,7 +52,9 @@ export function AdminLayout() {
             type="button"
             onClick={() => {
               setToken(null);
-              window.location.replace("/");
+              // Staff cache must not survive the token.
+              queryClient.clear();
+              navigate("/", { replace: true });
             }}
             className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-150 hover:bg-interactive-hover hover:text-text-primary"
           >

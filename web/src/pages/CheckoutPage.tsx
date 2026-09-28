@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 
 import { bookings } from "@/api/client";
+import { humanError } from "@/utils/errors";
 import { Button } from "@/components/ui/Button";
 import { useCountdown, formatCountdown } from "@/hooks/useCountdown";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -121,9 +122,7 @@ export function CheckoutPage() {
               className="mt-3 flex items-center gap-2 text-sm text-feedback-error-text"
             >
               <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-              {pay.error instanceof Error
-                ? pay.error.message
-                : "Не удалось оплатить, деньги не списаны. Попробуйте ещё раз."}
+              {humanError(pay.error, "Не удалось оплатить, деньги не списаны. Попробуйте ещё раз.")}
             </p>
           ) : null}
           <p className="mt-3 text-center text-xs text-text-secondary">
