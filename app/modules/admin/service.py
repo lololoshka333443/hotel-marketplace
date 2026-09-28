@@ -13,28 +13,31 @@ import asyncpg
 
 from app.modules.auth.jwt import create_access_token
 from app.utils.logger import get_logger
+from app.utils.secrets import hash_secret, needs_rehash, verify_secret
 
 log = get_logger(__name__)
 
 PropertyStatus = str
 
 
-def _hash_password(raw: str) -> str:
-    import hashlib
-
-    # Same Slice-0 placeholder as partner auth: swap for argon2 before real users.
-    return hashlib.sha256(raw.encode()).hexdigest()
-
-
 async def login_admin(conn: asyncpg.Connection, email: str, password: str) -> str:
-    """Verify staff credentials, return an admin-scoped JWT."""
-    row = await conn.fetchrow(
-        "SELECT id::text FROM admin WHERE email = $1 AND password_hash = $2",
-        email,
-        _hash_password(password),
-    )
-    if row is None:
+    """Verify staff credentials, return an admin-scoped JWT.
+
+    Legacy SHA-256 hashes verify and are upgraded in place, same as partner
+    login — staff does not get a forced reset either.
+    """
+    row = await conn.fetchrow("SELECT id::text, password_hash FROM admin WHERE email = $1", email)
+    if row is None or not verify_secret(password, row["password_hash"]):
         raise ValueError("invalid credentials")
+
+    if needs_rehash(row["password_hash"]):
+        await conn.execute(
+            "UPDATE admin SET password_hash = $2 WHERE id = $1",
+            row["id"],
+            hash_secret(password),
+        )
+        log.info("password-rehashed", scope="admin")
+
     log.info("admin-login", admin_id=row["id"])
     return create_access_token(row["id"], scope="admin")
 

@@ -38,6 +38,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     applied = await run_migrations()
     log.info("migrations-applied", versions=applied)
 
+    # Webhook secrets are sealed with this key; without it, new subscriptions
+    # fail closed and legacy ones degrade to plaintext. Loud at startup rather
+    # than as a 500 on the first webhook creation.
+    from app.utils.secrets import seal_key_is_configured
+
+    if not seal_key_is_configured():
+        log.warning(
+            "seal-key-missing",
+            hint="generate one with: python -c "
+            '"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"',
+        )
+
     if settings.sentry_dsn:
         import sentry_sdk
 

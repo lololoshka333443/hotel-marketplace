@@ -18,7 +18,9 @@ from typing import Any
 import asyncpg
 
 from app.config.settings import settings
+from app.utils import secrets as secrets_util
 from app.utils.logger import get_logger
+from app.utils.secrets import seal as seal_secret
 
 log = get_logger(__name__)
 
@@ -321,7 +323,7 @@ async def subscribers_for(conn: asyncpg.Connection, event_id: str, event_type: s
     """
     rows = await conn.fetch(
         """
-        SELECT s.id::text, s.url, s.secret
+        SELECT s.id::text, s.url, s.secret_sealed
         FROM outbox_event e
         JOIN property p ON p.id = e.property_id
         JOIN webhook_subscription s ON s.partner_id = p.partner_id
@@ -336,7 +338,52 @@ async def subscribers_for(conn: asyncpg.Connection, event_id: str, event_type: s
         event_id,
         event_type,
     )
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        sub = dict(r)
+        secret = await _read_secret(conn, sub.pop("secret_sealed"), sub["id"])
+        if secret is None:
+            # Sealed storage cannot be read and the plaintext is gone: the
+            # subscription cannot be delivered to, which is not the event's
+            # fault, so it is left out rather than failing the batch.
+            log.warning("subscription-secret-unreadable", subscription_id=sub["id"])
+            continue
+        sub["secret"] = secret
+        out.append(sub)
+    return out
+
+
+_LEGACY_PREFIX = "LEGACY:"
+
+
+async def _read_secret(conn: asyncpg.Connection, stored: str | None, sub_id: str) -> str | None:
+    """Read a subscription secret, sealing a legacy plaintext on the way.
+
+    The plaintext is only ever held here, on the path that already needed it to
+    sign a delivery — so this is the cheapest correct place to migrate a row.
+    """
+    if stored is None:
+        return None
+    if not stored.startswith(_LEGACY_PREFIX):
+        try:
+            return secrets_util.unseal(stored)
+        except RuntimeError:
+            # Tampered token, or the seal key rotated and this secret is gone.
+            return None
+    plaintext = stored[len(_LEGACY_PREFIX) :]
+    try:
+        sealed = seal_secret(plaintext)
+    except RuntimeError:
+        # No seal key configured: deliver what we can, and let the caller
+        # upgrade the row once configuration is fixed.
+        return plaintext
+    await conn.execute(
+        "UPDATE webhook_subscription SET secret_sealed = $2 WHERE id = $1",
+        sub_id,
+        sealed,
+    )
+    log.info("webhook-secret-sealed", subscription_id=sub_id)
+    return plaintext
 
 
 # ---- reconciliation --------------------------------------------------------

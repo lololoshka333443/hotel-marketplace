@@ -17,6 +17,7 @@ from app.db.pool import get_pool
 from app.modules.auth.deps import require_scope
 from app.modules.auth.jwt import TokenData
 from app.modules.outbox import service
+from app.utils.secrets import seal as seal_secret
 
 router = APIRouter(prefix="/v1", tags=["outbox"])
 
@@ -81,14 +82,15 @@ async def create_webhook(
     try:
         row = await conn.fetchrow(
             """
-            INSERT INTO webhook_subscription (partner_id, url, event_types, secret)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO webhook_subscription (partner_id, url, event_types, secret, secret_sealed)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id::text, url, event_types, enabled, created_at
             """,
             token.sub,
             data.url,
             data.event_types,
             data.secret,
+            seal_secret(data.secret),
         )
         assert row is not None
         return dict(row)

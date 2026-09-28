@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     # behind, in seconds since the oldest pending event.
     outbox_lag_alert_sec: int = Field(default=300)
 
+    # ----- Sealing -----
+    # Webhook subscription secrets must be readable back to sign outgoing
+    # deliveries, so they are sealed (authenticated encryption) rather than
+    # hashed. The DB holds ciphertext only; this key is the difference between
+    # a leaked table and a leaked secret. Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Rotation re-seals every existing secret — a migration, not a restart.
+    webhook_seal_key: str = Field(default="")
+
     # ----- Webhook delivery retention -----
     # webhook_delivery is partitioned by delivered_at, one partition a month,
     # and ages out on a schedule (app/modules/outbox/retention.py) — never in

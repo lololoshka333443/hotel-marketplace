@@ -16,6 +16,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "sentry-sdk>=2.19",
     "structlog>=24.4",
+    "argon2-cffi>=25.1.0",
+    "cryptography>=50.0.1",
 ]
 
 [project.optional-dependencies]

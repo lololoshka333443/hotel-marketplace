@@ -10,12 +10,12 @@ own.
 from __future__ import annotations
 
 import datetime as dt
-import hashlib
 import secrets
 
 import asyncpg
 
 from app.utils.logger import get_logger
+from app.utils.secrets import hash_secret, needs_rehash, verify_secret
 
 log = get_logger(__name__)
 
@@ -62,7 +62,7 @@ def _iso(value) -> str:
 
 
 def _hash(raw_key: str) -> str:
-    return hashlib.sha256(raw_key.encode()).hexdigest()
+    return hash_secret(raw_key)
 
 
 def generate_key() -> str:
@@ -119,25 +119,38 @@ async def revoke_key(conn: asyncpg.Connection, partner_id: str, key_id: str) -> 
 async def resolve_key(conn: asyncpg.Connection, raw_key: str) -> dict:
     """Map a presented key to its partner. Raises KeyRejected if unusable.
 
+    argon2 salts every hash, so a presented key cannot be turned into something
+    to look up by equality. The visible prefix narrows the candidates to one
+    partner's handful of keys, and each is verified properly.
+
     last_used_at is stamped on every use so the partner can spot a stale or
     leaked key; a failed lookup is not recorded.
     """
     if not is_well_formed(raw_key):
         raise KeyRejected("malformed api key")
 
-    row = await conn.fetchrow(
+    rows = await conn.fetch(
         """
-        SELECT k.id::text, k.partner_id::text, k.label, k.enabled, p.status
+        SELECT k.id::text, k.key_hash, k.partner_id::text, k.label, k.enabled, p.status
         FROM api_key k
         JOIN partner p ON p.id = k.partner_id
-        WHERE k.key_hash = $1
+        WHERE k.key_prefix = $1
         """,
-        _hash(raw_key),
+        raw_key[:PREFIX_LEN],
     )
+    row = next((r for r in rows if verify_secret(raw_key, r["key_hash"])), None)
     if row is None or not row["enabled"]:
         raise KeyRejected("api key not found")
     if row["status"] != "active":
         raise KeyRejected("partner account is not active")
+
+    if needs_rehash(row["key_hash"]):
+        await conn.execute(
+            "UPDATE api_key SET key_hash = $2 WHERE id = $1",
+            row["id"],
+            hash_secret(raw_key),
+        )
+        log.info("api-key-rehashed", key_id=row["id"])
 
     await conn.execute("UPDATE api_key SET last_used_at = now() WHERE id = $1", row["id"])
     return dict(row)

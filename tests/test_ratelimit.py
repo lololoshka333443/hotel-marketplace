@@ -33,6 +33,7 @@ from app.modules.outbox import worker
 from app.modules.property import service as property_service
 from app.modules.property.schemas import PropertyCreate
 from app.utils import ratelimit
+from tests._subs import subscribe
 
 TODAY = dt.date.today()
 
@@ -303,13 +304,8 @@ async def test_throttled_delivery_does_not_burn_an_attempt(db_conn, fresh_redis)
     # transaction rolls back, so claiming only ours below is all we need.
     await db_conn.execute("DELETE FROM outbox_event")
     seed = await _seed(db_conn, "rl-deliv@example.com")
-    sub_id = await db_conn.fetchval(
-        """
-        INSERT INTO webhook_subscription (partner_id, url, secret, event_types)
-        VALUES ($1, 'http://localhost:9/hooks', 's3cr3t-s3cr3t', '{*}')
-        RETURNING id::text
-        """,
-        seed["partner_id"],
+    sub_id = await subscribe(
+        db_conn, seed["partner_id"], "http://localhost:9/hooks", "s3cr3t-s3cr3t"
     )
     await outbox_service.emit(
         db_conn,

@@ -22,6 +22,7 @@ from app.modules.outbox import retention
 from app.modules.outbox import service as outbox_service
 from app.modules.property import service as property_service
 from app.modules.property.schemas import PropertyCreate
+from tests._subs import subscribe
 
 TODAY = dt.date.today()
 
@@ -73,14 +74,7 @@ def _push(seed: dict, *, day: int = 10) -> dict:
 
 
 async def _subscribe(conn: asyncpg.Connection, partner_id: str) -> str:
-    return await conn.fetchval(
-        """
-        INSERT INTO webhook_subscription (partner_id, url, secret, event_types)
-        VALUES ($1, 'http://localhost:9/hooks', 'ret-secret-ret', '{*}')
-        RETURNING id::text
-        """,
-        partner_id,
-    )
+    return await subscribe(conn, partner_id, "http://localhost:9/hooks", "ret-secret-ret")
 
 
 async def _delivery(

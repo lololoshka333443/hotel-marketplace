@@ -24,6 +24,7 @@ from app.modules.auth.schemas import PartnerRegisterRequest
 from app.modules.outbox import deliver, service, worker
 from app.modules.property import service as property_service
 from app.modules.property.schemas import PropertyCreate
+from tests._subs import subscribe
 
 TODAY = dt.date.today()
 
@@ -66,18 +67,9 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
 async def _subscribe(
     conn, partner_id: str, url: str, secret="very-very-secret", event_types=("*",)
 ) -> dict:
-    row = await conn.fetchrow(
-        """
-        INSERT INTO webhook_subscription (partner_id, url, event_types, secret)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id::text, url, secret
-        """,
-        partner_id,
-        url,
-        list(event_types),
-        secret,
-    )
-    return dict(row)
+    """Insert a subscription the way the API route does: secret sealed at rest."""
+    sub_id = await subscribe(conn, partner_id, url, secret, tuple(event_types))
+    return {"id": sub_id, "url": url, "secret": secret}
 
 
 def _event_row(row: asyncpg.Record) -> dict:

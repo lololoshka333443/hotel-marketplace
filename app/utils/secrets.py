@@ -1,0 +1,135 @@
+"""Password hashing and secret sealing.
+
+Passwords and API keys are hashed with argon2id (memory-hard, deliberately
+slow) — a plain SHA-256 of a low-entropy password is a rainbow table waiting to
+happen, and a leaked DB should not hand over partner credentials.
+
+The webhook subscription secret is a different animal: we need it back to sign
+outgoing deliveries, so it cannot be hashed. It is sealed instead —
+authenticated encryption with a key the database does not have. A leaked DB
+yields ciphertext only; the key lives in configuration.
+
+Both halves keep the ability to recognise a legacy SHA-256 digest so existing
+rows can be upgraded on the next login instead of every partner being forced
+through a reset: a hash that has to be re-derived to be checked is checked, and
+then replaced in place.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+
+from argon2 import PasswordHasher
+from argon2.exceptions import VerificationError, VerifyMismatchError
+from cryptography.fernet import Fernet, InvalidToken
+
+from app.config.settings import settings
+from app.utils.logger import get_logger
+
+log = get_logger(__name__)
+
+# Legacy Slice-0 digests are 64-char hex SHA-256. Recognised by shape so the
+# verifier can fall back to checking them, then upgrade the row.
+_LEGACY_HEX_LEN = 64
+_HEX = set("0123456789abcdef")
+
+_hasher = PasswordHasher(
+    # Defaults are the OWASP-recommended lane; left explicit so a library bump
+    # cannot silently make every login slower or every hash unverifiable.
+    time_cost=3,
+    memory_cost=64 * 1024,
+    parallelism=4,
+    hash_len=32,
+    salt_len=16,
+)
+
+
+def _is_legacy_digest(value: str) -> bool:
+    return len(value) == _LEGACY_HEX_LEN and all(c in _HEX for c in value)
+
+
+def hash_secret(raw: str) -> str:
+    """Hash a password or API key with argon2id.
+
+    A fresh salt per call, so the same plaintext never lands as the same row.
+    """
+    return _hasher.hash(raw)
+
+
+def verify_secret(raw: str, stored: str) -> bool:
+    """Check a plaintext against a stored digest.
+
+    Accepts an argon2 hash or a legacy SHA-256 digest — the caller decides what
+    to do with a legacy hit (re-hash it, see needs_rehash).
+    """
+    if _is_legacy_digest(stored):
+        return hmac.compare_digest(hashlib.sha256(raw.encode()).hexdigest(), stored)
+    try:
+        return _hasher.verify(stored, raw)
+    except VerifyMismatchError:
+        return False
+    except (VerificationError, ValueError):
+        # A malformed or truncated hash column is not something to paper over:
+        # treat it as a failed login, and let the caller's audit trail see it.
+        log.warning("malformed-hash-verify")
+        return False
+
+
+def needs_rehash(stored: str) -> bool:
+    """A legacy SHA-256 digest, or an argon2 hash weaker than current params.
+
+    Call this only after verify_secret matched — never hash first and ask later.
+    """
+    if _is_legacy_digest(stored):
+        return True
+    try:
+        return _hasher.check_needs_rehash(stored)
+    except (VerificationError, ValueError):
+        return False
+
+
+# ---- sealed storage --------------------------------------------------------
+
+
+def _fernet() -> Fernet:
+    key = settings.webhook_seal_key
+    if not key:
+        raise RuntimeError(
+            "WEBHOOK_SEAL_KEY is not configured — webhook secrets cannot be "
+            "stored without a seal key. Set it in .env (see .env.example)."
+        )
+    return Fernet(key.encode())
+
+
+def seal(plaintext: str) -> str:
+    """Encrypt a secret the database must not read back.
+
+    Returns a Fernet token: versioned, authenticated, time-stamped. The same
+    plaintext seals to a different token every call, so the column reveals
+    nothing about which subscriptions share a secret.
+    """
+    return _fernet().encrypt(plaintext.encode()).decode()
+
+
+def unseal(token: str) -> str:
+    """Decrypt a sealed secret. Raises if the seal key changed or data was tampered.
+
+    A seal key rotation makes every existing secret unreadable — that is the
+    trade for a key the DB does not hold, and re-sealing is a migration.
+    """
+    try:
+        return _fernet().decrypt(token.encode()).decode()
+    except (InvalidToken, ValueError) as exc:
+        raise RuntimeError("webhook secret could not be unsealed") from exc
+
+
+def seal_key_is_configured() -> bool:
+    """Whether a seal key is present, for a startup check that fails closed."""
+    return bool(settings.webhook_seal_key)
+
+
+def _example_key() -> str:
+    """A fresh key for .env.example generation and developer nudges."""
+    return base64.urlsafe_b64encode(Fernet.generate_key()).decode()
