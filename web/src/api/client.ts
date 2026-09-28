@@ -106,10 +106,10 @@ async function request<T>(
 // ---- auth -----------------------------------------------------------------
 
 export const auth = {
-  register: (email: string, password: string) =>
+  register: (email: string, password: string, name: string) =>
     request<TokenResponse>("/auth/register", {
       method: "POST",
-      body: { email, password },
+      body: { email, password, name },
     }),
   login: (email: string, password: string) =>
     request<TokenResponse>("/auth/login", {

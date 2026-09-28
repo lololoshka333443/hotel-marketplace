@@ -55,3 +55,84 @@ async def test_register_duplicate_email_raises(db_conn) -> None:
     await service.register_partner(db_conn, req)
     with pytest.raises(ValueError):
         await service.register_partner(db_conn, req)
+
+
+# ---- routes: the registration screen hits these over HTTP -----------------
+
+
+def _client():
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+
+    return TestClient(create_app())
+
+
+@pytest.mark.asyncio
+async def test_register_route_creates_and_issues_a_token(committed_conn) -> None:
+    """The screen's happy path: 201, a token, and a row that can log in."""
+    import uuid
+
+    email = f"reg-{uuid.uuid4().hex[:8]}@example.com"
+    with _client() as client:
+        response = client.post(
+            "/v1/auth/register",
+            json={"email": email, "password": "secret123", "name": "Гостевой дом"},
+        )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["scope"] == "partner"
+    assert decode_access_token(body["access_token"]) is not None
+
+    # The new account is usable immediately, with the argon2 hash in place.
+    digest = await committed_conn.fetchval(
+        "SELECT password_hash FROM partner WHERE email = $1", email
+    )
+    assert digest.startswith("$argon2id$")
+    token = await service.login(committed_conn, LoginRequest(email=email, password="secret123"))
+    assert decode_access_token(token) is not None
+
+
+@pytest.mark.asyncio
+async def test_register_route_rejects_a_duplicate_email(committed_conn) -> None:
+    """An existing partner gets a 409 the screen can show as a sentence."""
+    import uuid
+
+    email = f"dup-{uuid.uuid4().hex[:8]}@example.com"
+    await service.register_partner(
+        committed_conn,
+        PartnerRegisterRequest(email=email, password="secret123", name="Tester"),
+    )
+
+    with _client() as client:
+        response = client.post(
+            "/v1/auth/register",
+            json={"email": email, "password": "secret123", "name": "Другой"},
+        )
+
+    assert response.status_code == 409
+    assert "already registered" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_register_route_rejects_a_short_password(committed_conn) -> None:
+    """A password under the floor is a 422, never a silent account."""
+    import uuid
+
+    with _client() as client:
+        response = client.post(
+            "/v1/auth/register",
+            json={
+                "email": f"short-{uuid.uuid4().hex[:8]}@example.com",
+                "password": "12345",
+                "name": "Tester",
+            },
+        )
+
+    assert response.status_code == 422
+    # No account was created for the rejected request.
+    assert (
+        await committed_conn.fetchval("SELECT count(*) FROM partner WHERE email LIKE 'short-%'")
+        == 0
+    )

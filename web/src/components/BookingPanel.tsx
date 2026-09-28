@@ -23,6 +23,7 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
   const [checkin, setCheckin] = useState("");
   const [checkout, setCheckout] = useState("");
   const [days, setDays] = useState<AvailabilityDay[] | null>(null);
+  const [guest, setGuest] = useState({ name: "", email: "", phone: "" });
 
   const price = useMutation({
     mutationFn: () =>
@@ -33,7 +34,7 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
   const hold = useMutation({
     mutationFn: () =>
       bookings.hold(
-        { unit_type_id: unitTypeId, checkin, checkout, guest: GUEST },
+        { unit_type_id: unitTypeId, checkin, checkout, guest },
         `hold-${unitTypeId}-${checkin}-${checkout}`,
       ),
     onSuccess: (data) => navigate(`/checkout/${data.id}`),
@@ -41,7 +42,8 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
 
   const total = days ? days.reduce((s, d) => s + (d.price ?? 0), 0) : 0;
   const blocked = days?.some((d) => !d.available) ?? false;
-  const canBook = Boolean(checkin && checkout) && !blocked;
+  const guestComplete = Boolean(guest.name && guest.email && guest.phone);
+  const canBook = Boolean(checkin && checkout) && !blocked && guestComplete;
 
   function onCheck() {
     if (!checkin || !checkout) return;
@@ -126,6 +128,42 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
         </div>
       ) : null}
 
+      <div className="mt-4 space-y-3 border-t border-border-default pt-4">
+        <h3 className="text-sm font-medium text-text-secondary">Контакты гостя</h3>
+        <label className="block text-sm">
+          <span className="mb-1 block text-text-secondary">Имя</span>
+          <Input
+            value={guest.name}
+            onChange={(e) => setGuest({ ...guest, name: e.target.value })}
+            autoComplete="name"
+            placeholder="Как к вам обращаться"
+            required
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-text-secondary">Email</span>
+          <Input
+            type="email"
+            value={guest.email}
+            onChange={(e) => setGuest({ ...guest, email: e.target.value })}
+            autoComplete="email"
+            placeholder="name@example.com"
+            required
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-text-secondary">Телефон</span>
+          <Input
+            type="tel"
+            value={guest.phone}
+            onChange={(e) => setGuest({ ...guest, phone: e.target.value })}
+            autoComplete="tel"
+            placeholder="+7 999 000-00-00"
+            required
+          />
+        </label>
+      </div>
+
       <div className="mt-5">
         <Button
           onClick={() => hold.mutate()}
@@ -150,13 +188,15 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
           Мгновенное подтверждение · 100% предоплата · бесплатная отмена за
           сутки до заезда
         </p>
+        {!guestComplete ? (
+          <p className="mt-2 text-center text-xs text-text-tertiary">
+            Заполните даты и контакты гостя, чтобы забронировать.
+          </p>
+        ) : null}
       </div>
     </section>
   );
 }
-
-// Demo guest until the guest-facing auth exists; the backend requires the fields.
-const GUEST = { name: "Гость", email: "guest@example.com", phone: "+79990000000" };
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
