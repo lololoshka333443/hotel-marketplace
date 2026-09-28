@@ -9,7 +9,7 @@
 Tailwind 4 (фронт, single-app). Исходник правды — наша PostgreSQL; внешние
 площадки — каналы. Phase 2 готова целиком (админка, iCal export/import,
 channel write-API); Phase 3: outbox + webhook-доставка, channel read-API
-тарифов/доступности, rate-limits, reconciliation-отчёт, retention доставки (154 теста). Подробности — docs/ARCHITECTURE.md и README.
+тарифов/доступности, rate-limits, reconciliation-отчёт, retention доставки, лимит на backlog очереди (162 теста). Подробности — docs/ARCHITECTURE.md и README.
 
 ## Что сделано в этой сессии
 
@@ -312,8 +312,9 @@ fixed-window лимитами в Redis.
 
 ## Гейты / тесты — всё зелёное
 
-- `uv run pytest tests/ -q` — **154 passed**: 70 + 13 ical-import + 13 channel
-  + 15 outbox + 15 channel-read + 10 ratelimit + 11 reconciliation + 7 retention (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
+- `uv run pytest tests/ -q` — **162 passed**: 70 + 13 ical-import + 13 channel
+  + 15 outbox + 15 channel-read + 10 ratelimit + 11 reconciliation + 7 retention
+  + 8 backlog (rollback с транзакцией, эмит не ломает бизнес, claim/reclaim,
   HMAC, частичный успех, dead letter, ретрай, эмит из всех точек)
   (парсер: unfolding, datetime-форма, RRULE/COUNT, отказы на unbounded RRULE и
   без DTSTART; apply: блокировка, разблокировка только своего, добивание
@@ -353,11 +354,10 @@ fixed-window лимитами в Redis.
   компонентов. Что остаётся как каркас и **не** переписывается: токен-система
   Меняем содержимое палитры через `scripts/gen_palette.py` (BRAND_HUE
   и шаги рампы) + `emit_tokens.py`, не правя руками `theme.css`.
-1. **Лимит на backlog** — сейчас очередь растёт без ограничений; при росте
-   нужны shedding/приоритеты.
-2. **Шардинг outbox** — один воркер на всю очередь; при росте — по property.
-3. **Закрыть долги безопасности** — argon2 для паролей и API-ключей,
-   sealed column для секретов вебхуков (см. «Известные долги»).
+1. **Шардинг outbox** — один воркер на всю очередь; при росте — по property.
+2. **Закрыть долги безопасности** — argon2 для паролей и API-ключей,
+   sealed column для секретов вебхуков (см. «Известные долги»). Очередь теперь
+   ограничена (shedding + приоритет), а вот секреты всё ещё plaintext.
 
 ### Известные долги
 - Регистрации на UI нет (бэк `POST /v1/auth/register` есть); стафф заводится в
@@ -385,11 +385,11 @@ fixed-window лимитами в Redis.
 
 ```
 cd /Users/guuu/Desktop/hotel-marketplace
-uv run python -m app.db.migrate            # 15 миграций
+uv run python -m app.db.migrate            # 16 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
 uv run uvicorn app.main:app --port 8000    # бэк + prod-фронт из web/dist
 cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8000
-uv run pytest tests/ -q                    # 154 теста
+uv run pytest tests/ -q                    # 162 теста
 cd web && npx tsc -b --noEmit
 ```
 
@@ -416,7 +416,32 @@ cd web && npx tsc -b --noEmit
   (часть доказательств стёрта) или `undelivered` (все) — те же статусы, что и у
   реально недошедшей доставки.
 
-**Живые проверки**: бронь через channel-API → доставка в свежую партицию
-(`tableoid` = текущий месяц), 200 записан; retention удалил успехи старше 30
-дней, failed остался; reconciliation ответил `undelivered` для прореженного и
-`failed` для мёртвого письма.
+### 10. Лимит на backlog очереди (Phase 3, срез 6)
+
+Очередь росла без ограничений, а воркер разгребает её на `webhook_rate_per_sec`
+на подписку. Массовая операция (загрузка тарифов, iCal-импорт сезона) клала
+тысячи событий, и бронь — единственное событие, которое стоит денег, — ждала в
+конце очереди.
+
+- `migrations/0016__outbox_backlog_limit.sql` — `priority` в `outbox_event`
+  (`1` для booking, `9` для массовых), индекс под упорядоченный claim,
+  `outbox_shed_counter` — счётчик сброшенных событий, одна строка на тип.
+- `app/modules/outbox/backlog.py` — глубина очереди (`pending`+`delivering`),
+  решение `admit()` (бронь всегда входит, масса — пока есть место), запись в
+  счётчик.
+- `service.emit()` — сверх `outbox_max_pending` (2000) массовое событие
+  сбрасывается, считается и логируется, а не встаёт в очередь. Сброс безопасен:
+  канал вытягивает тарифы и доступность через read-API и iCal.
+- `claim_due` — `ORDER BY priority, next_attempt_at, happened_at`; RETURNING
+  переупорядочивается в Python, потому что UPDATE пересканирует таблицу.
+- `queue_metrics` отдаёт пороги (`depth_limit`, `lag_alert_sec`) и `shed_total`,
+  чтобы UI рисовал линии, которые реально настроены.
+- Фронт: «В очереди N / лимит», «Сброшено лимитом» + два алерта — достижение
+  лимита (идёт shedding) и отставание очереди.
+
+**Живые проверки**: 2600 изменений цен при задушенной подписке → глубина встала
+на 2000, 600 событий сброшены и посчитаны; бронь через channel-API при
+переполненной очереди доставлена (`published`, 200), пока ~1860 rate-событий
+ещё ждали.
+
+**Гейты**: 162 теста, ruff, tsc/build.
