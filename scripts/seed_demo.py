@@ -88,9 +88,7 @@ async def main() -> int:
 
             for property_def in PROPERTIES:
                 room_numbers = [r[0] for r in property_def["rooms"]]
-                photos_json = json.dumps(
-                    [p for n in room_numbers for p in PHOTOS.get(n, [])]
-                )
+                photos_json = json.dumps([p for n in room_numbers for p in PHOTOS.get(n, [])])
                 address = json.dumps({"settlement": "Коктебель", "region": "Крым"})
 
                 property_id = await conn.fetchval(

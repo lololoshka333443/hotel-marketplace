@@ -110,9 +110,7 @@ async def delete_webhook(
             token.sub,
         )
         if not result.endswith(" 1"):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="webhook not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="webhook not found")
         return {"deleted": webhook_id}
     finally:
         await get_pool().release(conn)

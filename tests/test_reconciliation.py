@@ -42,7 +42,9 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -326,9 +328,7 @@ async def test_delivered_verdict_is_not_blocked_by_a_late_hook(committed_conn) -
     await _deliver_once(committed_conn, event_id, expected_sub)
     # A second hook appears later and keeps failing: the event stays pending.
     late_sub = await _subscribe(committed_conn, seed["partner_id"])
-    await outbox_service.record_delivery(
-        committed_conn, event_id, late_sub, False, 502, "HTTP 502"
-    )
+    await outbox_service.record_delivery(committed_conn, event_id, late_sub, False, 502, "HTTP 502")
 
     report = await outbox_service.reconciliation(committed_conn)
     row = report["bookings"][0]

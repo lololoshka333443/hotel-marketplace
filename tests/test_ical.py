@@ -26,7 +26,9 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -107,9 +109,7 @@ async def test_feed_rejected_for_foreign_unit_type(db_conn) -> None:
     other = await _seed(db_conn, "i4@example.com")
 
     with pytest.raises(ValueError):
-        await ical_export.create_or_rotate_feed(
-            db_conn, other["unit_type_id"], mine["partner_id"]
-        )
+        await ical_export.create_or_rotate_feed(db_conn, other["unit_type_id"], mine["partner_id"])
 
 
 @pytest.mark.asyncio
@@ -189,9 +189,7 @@ async def test_calendar_skips_past_stays(db_conn) -> None:
         seed["unit_type_id"],
     )
     # a stay that ended yesterday
-    await _hold(
-        db_conn, seed["unit_type_id"], TODAY - dt.timedelta(days=3), nights=2
-    )
+    await _hold(db_conn, seed["unit_type_id"], TODAY - dt.timedelta(days=3), nights=2)
 
     body = await ical_export.build_calendar(db_conn, seed["unit_type_id"])
 

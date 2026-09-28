@@ -40,14 +40,10 @@ async def ical_feed(feed_token: str) -> PlainTextResponse:
     try:
         feed = await ical_export.get_feed_by_token(conn, feed_token)
         if feed is None or not feed["enabled"]:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="feed not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="feed not found")
         body = await ical_export.build_calendar(conn, feed["unit_type_id"])
         if body is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="feed not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="feed not found")
         return PlainTextResponse(
             content=body,
             media_type="text/calendar; charset=utf-8",
@@ -67,9 +63,7 @@ async def get_ical_feed(
     try:
         feed = await ical_export.get_feed_for_unit_type(conn, unit_type_id, token.sub)
         if feed is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="feed not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="feed not found")
         return {**feed, "url": _feed_url(feed["token"])}
     finally:
         await get_pool().release(conn)
@@ -86,9 +80,7 @@ async def rotate_ical_feed(
         try:
             feed = await ical_export.create_or_rotate_feed(conn, unit_type_id, token.sub)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         return {**feed, "url": _feed_url(feed["token"])}
     finally:
         await get_pool().release(conn)
@@ -103,9 +95,7 @@ def _feed_url(feed_token: str) -> str:
 # ---- iCal import -----------------------------------------------------------
 
 
-async def _owned_subscription(
-    conn, unit_type_id: str, partner_id: str
-) -> dict | None:
+async def _owned_subscription(conn, unit_type_id: str, partner_id: str) -> dict | None:
     return await conn.fetchrow(
         """
         SELECT s.id::text AS id, s.url, s.enabled, s.last_synced_at,
@@ -158,9 +148,7 @@ async def set_ical_import(
             token.sub,
         )
         if not owned:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="unit type not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="unit type not found")
         row = await conn.fetchrow(
             """
             INSERT INTO ical_subscription (unit_type_id, url)
@@ -216,8 +204,6 @@ async def sync_ical_import_now(
         try:
             return await ical_import.sync_subscription(conn, sub["id"])
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     finally:
         await get_pool().release(conn)

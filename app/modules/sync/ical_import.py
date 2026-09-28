@@ -70,9 +70,7 @@ async def sync_subscription(conn: asyncpg.Connection, subscription_id: str) -> d
     return {"status": "ok", **result}
 
 
-async def apply_import(
-    conn: asyncpg.Connection, unit_type_id: str, blocked: set[dt.date]
-) -> dict:
+async def apply_import(conn: asyncpg.Connection, unit_type_id: str, blocked: set[dt.date]) -> dict:
     """Apply the blocked date set to inventory as import-sourced stop sell.
 
     Idempotent: re-applying the same set changes nothing after the first run.
@@ -153,6 +151,7 @@ async def apply_import(
             )
 
     return {"blocked": len(blocked_list), "cleared": len(cleared_rows)}
+
 
 async def list_due(conn: asyncpg.Connection, limit: int = 25) -> list[str]:
     """Claim subscriptions due for a sync.

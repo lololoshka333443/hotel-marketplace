@@ -45,10 +45,14 @@ def main() -> int:
         webp = optimize_one(jpg)
         total_in += jpg.stat().st_size
         total_out += webp.stat().st_size
-        print(f"{jpg.relative_to(ROOT)}  {jpg.stat().st_size // 1024}KB -> {webp.stat().st_size // 1024}KB")
+        print(
+            f"{jpg.relative_to(ROOT)}  {jpg.stat().st_size // 1024}KB -> {webp.stat().st_size // 1024}KB"
+        )
     if total_in:
-        print(f"\ntotal: {total_in // 1024 // 1024}MB -> {total_out // 1024 // 1024}MB "
-              f"({total_out * 100 // total_in}%)")
+        print(
+            f"\ntotal: {total_in // 1024 // 1024}MB -> {total_out // 1024 // 1024}MB "
+            f"({total_out * 100 // total_in}%)"
+        )
     return 0
 
 

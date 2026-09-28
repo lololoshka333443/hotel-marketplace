@@ -74,9 +74,7 @@ def is_well_formed(raw_key: str) -> bool:
     return raw_key.startswith(KEY_PREFIX) and len(raw_key) > PREFIX_LEN
 
 
-async def create_key(
-    conn: asyncpg.Connection, partner_id: str, label: str
-) -> dict:
+async def create_key(conn: asyncpg.Connection, partner_id: str, label: str) -> dict:
     """Create a key. The plaintext is in the response and nowhere else."""
     raw = generate_key()
     row = await conn.fetchrow(
@@ -141,15 +139,11 @@ async def resolve_key(conn: asyncpg.Connection, raw_key: str) -> dict:
     if row["status"] != "active":
         raise KeyRejected("partner account is not active")
 
-    await conn.execute(
-        "UPDATE api_key SET last_used_at = now() WHERE id = $1", row["id"]
-    )
+    await conn.execute("UPDATE api_key SET last_used_at = now() WHERE id = $1", row["id"])
     return dict(row)
 
 
-async def unit_type_owned_by(
-    conn: asyncpg.Connection, unit_type_id: str, partner_id: str
-) -> bool:
+async def unit_type_owned_by(conn: asyncpg.Connection, unit_type_id: str, partner_id: str) -> bool:
     return bool(
         await conn.fetchval(
             """
@@ -299,9 +293,7 @@ async def get_channel_availability(
     }
 
 
-async def booking_owned_by(
-    conn: asyncpg.Connection, booking_id: str, partner_id: str
-) -> bool:
+async def booking_owned_by(conn: asyncpg.Connection, booking_id: str, partner_id: str) -> bool:
     """A channel may only see bookings on its own inventory."""
     return bool(
         await conn.fetchval(
@@ -397,9 +389,7 @@ async def cancel_channel_booking(
     if not await booking_owned_by(conn, booking_id, partner_id):
         raise NotOwned("booking not found")
 
-    status_now = await conn.fetchval(
-        "SELECT status FROM booking WHERE id = $1", booking_id
-    )
+    status_now = await conn.fetchval("SELECT status FROM booking WHERE id = $1", booking_id)
     if status_now is None:
         raise NotOwned("booking not found")
 

@@ -196,8 +196,7 @@ def _sha(raw: str) -> str:
 
 async def _seed_admin(conn: asyncpg.Connection, email: str) -> None:
     await conn.execute(
-        "INSERT INTO admin (email, password_hash) VALUES ($1, $2) "
-        "ON CONFLICT (email) DO NOTHING",
+        "INSERT INTO admin (email, password_hash) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING",
         email,
         _sha("secret123"),
     )
@@ -209,9 +208,7 @@ async def _property_with_status(conn: asyncpg.Connection, email: str, status: st
         "SELECT id::text FROM property WHERE partner_id = $1", seed["partner_id"]
     )
     assert property_id is not None
-    await conn.execute(
-        "UPDATE property SET status = $2 WHERE id = $1", property_id, status
-    )
+    await conn.execute("UPDATE property SET status = $2 WHERE id = $1", property_id, status)
     return property_id
 
 
@@ -277,9 +274,10 @@ async def test_moderation_rejects_illegal_transition(committed_conn) -> None:
 
 @pytest.mark.asyncio
 async def test_moderation_unknown_property_returns_none(committed_conn) -> None:
-    assert await admin_service.set_property_status(
-        committed_conn, str(uuid.uuid4()), "published"
-    ) is None
+    assert (
+        await admin_service.set_property_status(committed_conn, str(uuid.uuid4()), "published")
+        is None
+    )
 
 
 @pytest.mark.asyncio

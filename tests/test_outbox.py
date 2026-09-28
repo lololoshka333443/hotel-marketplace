@@ -36,7 +36,9 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -61,15 +63,19 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
     }
 
 
-async def _subscribe(conn, partner_id: str, url: str, secret="very-very-secret",
-                     event_types=("*",)) -> dict:
+async def _subscribe(
+    conn, partner_id: str, url: str, secret="very-very-secret", event_types=("*",)
+) -> dict:
     row = await conn.fetchrow(
         """
         INSERT INTO webhook_subscription (partner_id, url, event_types, secret)
         VALUES ($1, $2, $3, $4)
         RETURNING id::text, url, secret
         """,
-        partner_id, url, list(event_types), secret,
+        partner_id,
+        url,
+        list(event_types),
+        secret,
     )
     return dict(row)
 
@@ -113,9 +119,11 @@ async def test_emit_failure_does_not_break_the_caller(db_conn, monkeypatch) -> N
     # Must not raise.
     await service.emit(
         db_conn,
-        aggregate="property", aggregate_id="p1",
+        aggregate="property",
+        aggregate_id="p1",
         event_type=service.PROPERTY_STATUS_CHANGED,
-        payload={}, property_id=None,
+        payload={},
+        property_id=None,
     )
 
 
@@ -132,7 +140,8 @@ async def test_emit_rolls_back_with_the_transaction(committed_conn) -> None:
             )
             await service.emit(
                 committed_conn,
-                aggregate="property", aggregate_id=seed["property_id"],
+                aggregate="property",
+                aggregate_id=seed["property_id"],
                 event_type=service.PROPERTY_STATUS_CHANGED,
                 payload={"status": "blocked"},
                 property_id=seed["property_id"],
@@ -156,15 +165,21 @@ async def test_claim_marks_delivering_and_orders_by_happened(committed_conn) -> 
     for i in range(3):
         await service.emit(
             committed_conn,
-            aggregate="property", aggregate_id=f"p{i}",
+            aggregate="property",
+            aggregate_id=f"p{i}",
             event_type=service.PROPERTY_STATUS_CHANGED,
-            payload={"i": i}, property_id=None,
+            payload={"i": i},
+            property_id=None,
         )
         await committed_conn.execute("SELECT pg_sleep(0.01)")
 
     claimed = await service.claim_due(committed_conn, 2)
     assert len(claimed) == 2
-    first_payload = json.loads(claimed[0]["payload"]) if isinstance(claimed[0]["payload"], str) else claimed[0]["payload"]
+    first_payload = (
+        json.loads(claimed[0]["payload"])
+        if isinstance(claimed[0]["payload"], str)
+        else claimed[0]["payload"]
+    )
     assert first_payload["i"] == 0  # oldest first
     statuses = [r["status"] for r in await committed_conn.fetch("SELECT status FROM outbox_event")]
     assert statuses.count("delivering") == 2
@@ -174,8 +189,12 @@ async def test_claim_marks_delivering_and_orders_by_happened(committed_conn) -> 
 @pytest.mark.asyncio
 async def test_reclaim_stale_returns_orphans(committed_conn) -> None:
     await service.emit(
-        committed_conn, aggregate="property", aggregate_id="p1",
-        event_type=service.PROPERTY_STATUS_CHANGED, payload={}, property_id=None,
+        committed_conn,
+        aggregate="property",
+        aggregate_id="p1",
+        event_type=service.PROPERTY_STATUS_CHANGED,
+        payload={},
+        property_id=None,
     )
     await service.claim_due(committed_conn, 10)
     # Simulate a worker that died mid-flight.
@@ -201,9 +220,12 @@ async def test_deliver_success(db_conn, monkeypatch) -> None:
     seed = await _seed(db_conn, "d1@example.com")
     sub = await _subscribe(db_conn, seed["partner_id"], "https://ch.example/hook")
     await service.emit(
-        db_conn, aggregate="property", aggregate_id=seed["property_id"],
+        db_conn,
+        aggregate="property",
+        aggregate_id=seed["property_id"],
         event_type=service.PROPERTY_STATUS_CHANGED,
-        payload={"status": "blocked"}, property_id=seed["property_id"],
+        payload={"status": "blocked"},
+        property_id=seed["property_id"],
     )
     [event] = await service.claim_due(db_conn, 10)
 
@@ -240,9 +262,12 @@ async def test_deliver_failure_backoff_then_dead_letter(committed_conn, monkeypa
     seed = await _seed(committed_conn, "d2@example.com")
     await _subscribe(committed_conn, seed["partner_id"], "https://ch.example/hook")
     await service.emit(
-        committed_conn, aggregate="property", aggregate_id=seed["property_id"],
+        committed_conn,
+        aggregate="property",
+        aggregate_id=seed["property_id"],
         event_type=service.PROPERTY_STATUS_CHANGED,
-        payload={}, property_id=seed["property_id"],
+        payload={},
+        property_id=seed["property_id"],
     )
 
     async def failing(url, secret, ev):
@@ -277,9 +302,12 @@ async def test_one_flaky_subscriber_does_not_block_another(committed_conn, monke
     bad = await _subscribe(committed_conn, seed["partner_id"], "https://bad.example/hook")
 
     await service.emit(
-        committed_conn, aggregate="property", aggregate_id=seed["property_id"],
+        committed_conn,
+        aggregate="property",
+        aggregate_id=seed["property_id"],
         event_type=service.PROPERTY_STATUS_CHANGED,
-        payload={}, property_id=seed["property_id"],
+        payload={},
+        property_id=seed["property_id"],
     )
     [event] = await service.claim_due(committed_conn, 10)
 
@@ -315,9 +343,12 @@ async def test_one_flaky_subscriber_does_not_block_another(committed_conn, monke
 async def test_no_subscribers_marks_published(db_conn) -> None:
     seed = await _seed(db_conn, "d4@example.com")
     await service.emit(
-        db_conn, aggregate="property", aggregate_id=seed["property_id"],
+        db_conn,
+        aggregate="property",
+        aggregate_id=seed["property_id"],
         event_type=service.PROPERTY_STATUS_CHANGED,
-        payload={}, property_id=seed["property_id"],
+        payload={},
+        property_id=seed["property_id"],
     )
     [event] = await service.claim_due(db_conn, 10)
     await worker._deliver_one(db_conn, event)
@@ -329,14 +360,19 @@ async def test_event_type_filter(db_conn, monkeypatch) -> None:
     """A subscription scoped to one event type does not receive the others."""
     seed = await _seed(db_conn, "d5@example.com")
     await _subscribe(
-        db_conn, seed["partner_id"], "https://ch.example/hook",
+        db_conn,
+        seed["partner_id"],
+        "https://ch.example/hook",
         event_types=(service.RATE_PRICES_CHANGED,),
     )
 
     await service.emit(
-        db_conn, aggregate="property", aggregate_id=seed["property_id"],
+        db_conn,
+        aggregate="property",
+        aggregate_id=seed["property_id"],
         event_type=service.PROPERTY_STATUS_CHANGED,
-        payload={}, property_id=seed["property_id"],
+        payload={},
+        property_id=seed["property_id"],
     )
     [event] = await service.claim_due(db_conn, 10)
     subs = await service.subscribers_for(db_conn, event["id"], event["event_type"])
@@ -353,9 +389,7 @@ async def test_property_status_change_emits(committed_conn) -> None:
     from app.modules.admin import service as admin_service
 
     seed = await _seed(committed_conn, "a1@example.com")
-    row = await admin_service.set_property_status(
-        committed_conn, seed["property_id"], "blocked"
-    )
+    row = await admin_service.set_property_status(committed_conn, seed["property_id"], "blocked")
     assert row["status"] == "blocked"
 
     events = await committed_conn.fetch("SELECT event_type, payload FROM outbox_event")
@@ -371,8 +405,11 @@ async def test_price_change_emits(committed_conn) -> None:
     seed = await _seed(committed_conn, "a2@example.com")
     rp = await rate_service.create_rate_plan(committed_conn, seed["unit_type_id"], "Лето")
     await rate_service.set_prices(
-        committed_conn, rp["id"], TODAY + dt.timedelta(days=10),
-        TODAY + dt.timedelta(days=12), 4500.0,
+        committed_conn,
+        rp["id"],
+        TODAY + dt.timedelta(days=10),
+        TODAY + dt.timedelta(days=12),
+        4500.0,
     )
 
     row = await committed_conn.fetchrow("SELECT * FROM outbox_event")
@@ -388,8 +425,11 @@ async def test_inventory_close_emits(committed_conn) -> None:
 
     seed = await _seed(committed_conn, "a3@example.com")
     n = await inventory_service.close_range(
-        committed_conn, seed["unit_type_id"],
-        TODAY + dt.timedelta(days=10), TODAY + dt.timedelta(days=12), closed=True,
+        committed_conn,
+        seed["unit_type_id"],
+        TODAY + dt.timedelta(days=10),
+        TODAY + dt.timedelta(days=12),
+        closed=True,
     )
     assert n == 2
 
@@ -418,11 +458,19 @@ async def test_booking_confirmed_and_cancelled_emit(committed_conn) -> None:
     )
     await payment_service.pay_and_confirm(booking["id"], conn=committed_conn)
 
-    types = [r["event_type"] for r in await committed_conn.fetch(
-        "SELECT event_type FROM outbox_event ORDER BY happened_at")]
+    types = [
+        r["event_type"]
+        for r in await committed_conn.fetch(
+            "SELECT event_type FROM outbox_event ORDER BY happened_at"
+        )
+    ]
     assert service.BOOKING_CONFIRMED in types
 
     await payment_service.refund_booking(booking["id"], conn=committed_conn)
-    types = [r["event_type"] for r in await committed_conn.fetch(
-        "SELECT event_type FROM outbox_event ORDER BY happened_at")]
+    types = [
+        r["event_type"]
+        for r in await committed_conn.fetch(
+            "SELECT event_type FROM outbox_event ORDER BY happened_at"
+        )
+    ]
     assert service.BOOKING_CANCELLED in types

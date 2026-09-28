@@ -73,14 +73,9 @@ async def moderate_property(
         try:
             row = await service.set_property_status(conn, property_id, data.status)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         if row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="property not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="property not found")
         return AdminPropertyOut(**row)
     finally:
         await get_pool().release(conn)
-

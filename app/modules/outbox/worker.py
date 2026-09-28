@@ -78,12 +78,8 @@ async def _deliver_one(conn: asyncpg.Connection, event: dict) -> None:
             log.debug("webhook-throttled", subscription_id=sub["id"], retry_after=retry_after)
             continue
 
-        ok, status_code, error = await deliver.deliver(
-            sub["url"], sub["secret"], event
-        )
-        await service.record_delivery(
-            conn, event["id"], sub["id"], ok, status_code, error
-        )
+        ok, status_code, error = await deliver.deliver(sub["url"], sub["secret"], event)
+        await service.record_delivery(conn, event["id"], sub["id"], ok, status_code, error)
         if not ok:
             errors.append(f"{sub['url']}: {error}")
 
@@ -91,9 +87,7 @@ async def _deliver_one(conn: asyncpg.Connection, event: dict) -> None:
         await service.mark_published(conn, event["id"])
         log.info("outbox-published", event_id=event["id"], subs=len(subs))
     elif errors:
-        await service.mark_retry(
-            conn, event["id"], event["attempts"] + 1, "; ".join(errors)
-        )
+        await service.mark_retry(conn, event["id"], event["attempts"] + 1, "; ".join(errors))
         log.warning(
             "outbox-delivery-failed",
             event_id=event["id"],

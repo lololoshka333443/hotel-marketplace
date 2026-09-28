@@ -21,9 +21,9 @@ from coloraide import Color
 # Mood:   "warm travel" — trustworthy, calm, sea-and-sky, photography-first.
 # Motion: subtle / calm.
 
-BRAND_HUE = 258.0       # sea-sky blue — trustworthy, not corporate navy
+BRAND_HUE = 258.0  # sea-sky blue — trustworthy, not corporate navy
 BRAND_CHROMA = 0.11
-NEUTRAL_HUE = 260.0     # cool-neutral, same family as brand (no muddy green)
+NEUTRAL_HUE = 260.0  # cool-neutral, same family as brand (no muddy green)
 NEUTRAL_CHROMA = 0.006
 
 SUCCESS_HUE, SUCCESS_CHROMA = 150.0, 0.10

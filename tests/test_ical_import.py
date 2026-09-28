@@ -34,7 +34,9 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -67,11 +69,7 @@ def _guest() -> dict:
 
 
 def _cal(body: str) -> str:
-    return (
-        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID://t//t//RU\r\n"
-        + body
-        + "END:VCALENDAR\r\n"
-    )
+    return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID://t//t//RU\r\n" + body + "END:VCALENDAR\r\n"
 
 
 def test_parser_reads_date_event() -> None:
@@ -99,9 +97,7 @@ def test_parser_unfolds_lines() -> None:
 
 def test_parser_defaults_missing_dtend_to_one_night() -> None:
     events = parse_calendar(
-        _cal(
-            "BEGIN:VEVENT\r\nUID:abc\r\nDTSTART;VALUE=DATE:20260110\r\nEND:VEVENT\r\n"
-        )
+        _cal("BEGIN:VEVENT\r\nUID:abc\r\nDTSTART;VALUE=DATE:20260110\r\nEND:VEVENT\r\n")
     )
     assert events[0].end == dt.date(2026, 1, 11)
 
@@ -166,8 +162,7 @@ async def test_apply_blocks_and_unblocks(db_conn) -> None:
     )
     assert closed is True
     source = await db_conn.fetchval(
-        "SELECT closed_source FROM inventory_day "
-        "WHERE unit_type_id = $1 AND date = $2",
+        "SELECT closed_source FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
         ut,
         TODAY + dt.timedelta(days=10),
     )
@@ -195,16 +190,22 @@ async def test_apply_unblocks_only_import_closures(db_conn) -> None:
     result = await ical_import.apply_import(db_conn, ut, set())
 
     assert result["cleared"] == 2
-    assert await db_conn.fetchval(
-        "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
-        ut,
-        TODAY + dt.timedelta(days=10),
-    ) is False
-    assert await db_conn.fetchval(
-        "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
-        ut,
-        TODAY + dt.timedelta(days=20),
-    ) is True
+    assert (
+        await db_conn.fetchval(
+            "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
+            ut,
+            TODAY + dt.timedelta(days=10),
+        )
+        is False
+    )
+    assert (
+        await db_conn.fetchval(
+            "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
+            ut,
+            TODAY + dt.timedelta(days=20),
+        )
+        is True
+    )
 
 
 @pytest.mark.asyncio
@@ -218,11 +219,14 @@ async def test_apply_creates_missing_inventory_rows(db_conn) -> None:
     result = await ical_import.apply_import(db_conn, ut, {far})
 
     assert result["blocked"] == 1
-    assert await db_conn.fetchval(
-        "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
-        ut,
-        far,
-    ) is True
+    assert (
+        await db_conn.fetchval(
+            "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
+            ut,
+            far,
+        )
+        is True
+    )
 
 
 @pytest.mark.asyncio
@@ -239,25 +243,23 @@ async def test_import_never_touches_paid_bookings(db_conn) -> None:
         idempotency_key=f"k-{uuid.uuid4()}",
         **_guest(),
     )
-    await db_conn.execute(
-        "UPDATE booking SET status = 'confirmed' WHERE id = $1", booking["id"]
-    )
+    await db_conn.execute("UPDATE booking SET status = 'confirmed' WHERE id = $1", booking["id"])
 
     await ical_import.apply_import(
         db_conn, ut, {TODAY + dt.timedelta(days=10), TODAY + dt.timedelta(days=11)}
     )
 
-    status = await db_conn.fetchval(
-        "SELECT status FROM booking WHERE id = $1", booking["id"]
-    )
+    status = await db_conn.fetchval("SELECT status FROM booking WHERE id = $1", booking["id"])
     assert status == "confirmed"
     # and the date is now closed to NEW bookings
-    assert await db_conn.fetchval(
-        "SELECT closed FROM inventory_day "
-        "WHERE unit_type_id = $1 AND date = $2",
-        ut,
-        TODAY + dt.timedelta(days=10),
-    ) is True
+    assert (
+        await db_conn.fetchval(
+            "SELECT closed FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
+            ut,
+            TODAY + dt.timedelta(days=10),
+        )
+        is True
+    )
 
 
 # ---------------------------------------------------------------- sync (HTTP mocked)
@@ -269,8 +271,7 @@ async def test_sync_fetches_and_applies(db_conn, monkeypatch) -> None:
     ut = seed["unit_type_id"]
 
     sub_id = await db_conn.fetchval(
-        "INSERT INTO ical_subscription (unit_type_id, url) VALUES ($1, $2) "
-        "RETURNING id::text",
+        "INSERT INTO ical_subscription (unit_type_id, url) VALUES ($1, $2) RETURNING id::text",
         ut,
         "https://example.com/cal.ics",
     )
@@ -304,8 +305,7 @@ async def test_sync_fetches_and_applies(db_conn, monkeypatch) -> None:
 async def test_sync_records_fetch_errors(db_conn, monkeypatch) -> None:
     seed = await _seed(db_conn, "x6@example.com")
     sub_id = await db_conn.fetchval(
-        "INSERT INTO ical_subscription (unit_type_id, url) VALUES ($1, $2) "
-        "RETURNING id::text",
+        "INSERT INTO ical_subscription (unit_type_id, url) VALUES ($1, $2) RETURNING id::text",
         seed["unit_type_id"],
         "https://example.com/cal.ics",
     )

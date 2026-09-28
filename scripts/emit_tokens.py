@@ -39,9 +39,7 @@ def ref(path: str) -> dict:
 
 def build_colors_json(p: dict) -> dict:
     ramps = ("blue", "neutral", "green", "amber", "red")
-    primitive: dict = {
-        hue: {name: color(p[hue][name]) for name in SHADES} for hue in ramps
-    }
+    primitive: dict = {hue: {name: color(p[hue][name]) for name in SHADES} for hue in ramps}
     primitive["white"] = color(WHITE)
     primitive["black"] = color(BLACK)
 
@@ -236,12 +234,14 @@ def build_theme_css(p: dict) -> str:
         css_var("t-text-link-hover", b["700"]),
         "",
         "  /* action */",
-        css_var("t-action-primary", b["600"]) + f"  /* white on this = {pair(WHITE, b['600']):.2f}:1 */",
+        css_var("t-action-primary", b["600"])
+        + f"  /* white on this = {pair(WHITE, b['600']):.2f}:1 */",
         css_var("t-action-primary-hover", b["700"]),
         css_var("t-action-primary-active", b["800"]),
         css_var("t-action-secondary", n["100"]),
         css_var("t-action-secondary-hover", n["200"]),
-        css_var("t-action-destructive", p["red"]["600"]) + f"  /* white = {pair(WHITE, p['red']['600']):.2f}:1 */",
+        css_var("t-action-destructive", p["red"]["600"])
+        + f"  /* white = {pair(WHITE, p['red']['600']):.2f}:1 */",
         css_var("t-action-destructive-hover", p["red"]["700"]),
         "",
         "  /* borders */",
@@ -309,7 +309,10 @@ def build_theme_css(p: dict) -> str:
         css_var("t-size-control-lg", "3rem"),
         css_var("t-opacity-disabled", "0.5"),
         css_var("t-transition-micro", "150ms ease-out"),
-        css_var("t-shadow-overlay", "0 20px 25px -5px rgba(20, 23, 30, 0.15), 0 8px 10px -6px rgba(20, 23, 30, 0.10)"),
+        css_var(
+            "t-shadow-overlay",
+            "0 20px 25px -5px rgba(20, 23, 30, 0.15), 0 8px 10px -6px rgba(20, 23, 30, 0.10)",
+        ),
         css_var("t-z-modal", "50"),
         "",
         "  /* breakpoints (mobile-first) */",
@@ -337,7 +340,8 @@ def build_theme_css(p: dict) -> str:
         css_var("t-text-link-hover", b["300"]),
         "",
         "  /* action */",
-        css_var("t-action-primary", b["600"]) + f"  /* white = {pair(WHITE, b['600']):.2f}:1, dark-safe */",
+        css_var("t-action-primary", b["600"])
+        + f"  /* white = {pair(WHITE, b['600']):.2f}:1, dark-safe */",
         css_var("t-action-primary-hover", b["700"]),
         css_var("t-action-secondary", n["800"]),
         css_var("t-action-secondary-hover", n["700"]),

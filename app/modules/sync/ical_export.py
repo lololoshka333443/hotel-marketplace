@@ -50,9 +50,7 @@ def token() -> str:
 
 async def build_calendar(conn: asyncpg.Connection, unit_type_id: str) -> str | None:
     """Render the unit type's calendar as RFC 5545, or None if it doesn't exist."""
-    name = await conn.fetchval(
-        "SELECT name FROM unit_type WHERE id = $1", unit_type_id
-    )
+    name = await conn.fetchval("SELECT name FROM unit_type WHERE id = $1", unit_type_id)
     if name is None:
         return None
 

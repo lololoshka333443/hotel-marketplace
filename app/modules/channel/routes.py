@@ -37,9 +37,7 @@ async def _require_api_key(x_api_key: Annotated[str | None, Header()] = None) ->
         finally:
             await get_pool().release(conn)
     except service.KeyRejected as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
 
 async def _limit(
@@ -99,9 +97,7 @@ async def create_channel_booking(
                 client_key=data.idempotency_key,
             )
         except service.NotOwned as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except booking_service.NotAvailable as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -131,9 +127,7 @@ async def get_channel_booking(
     conn = await get_pool().acquire()
     try:
         if not await service.booking_owned_by(conn, booking_id, key["partner_id"]):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="booking not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="booking not found")
         row = await conn.fetchrow(
             """
             SELECT id::text, code, status, total_amount::float8,
@@ -157,21 +151,13 @@ async def cancel_channel_booking(
     conn = await get_pool().acquire()
     try:
         try:
-            return await service.cancel_channel_booking(
-                conn, key["partner_id"], booking_id
-            )
+            return await service.cancel_channel_booking(conn, key["partner_id"], booking_id)
         except service.NotOwned as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except service.NotAvailable as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         except payment_service.PaymentError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     finally:
         await get_pool().release(conn)
 
@@ -198,9 +184,7 @@ async def channel_rates(
                 conn, key["partner_id"], unit_type_id, date_from, date_to
             )
         except service.NotOwned as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except service.BadRange as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -231,9 +215,7 @@ async def channel_availability(
                 conn, key["partner_id"], unit_type_id, date_from, date_to
             )
         except service.NotOwned as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except service.BadRange as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -280,9 +262,7 @@ async def revoke_api_key(
     try:
         revoked = await service.revoke_key(conn, token.sub, key_id)
         if not revoked:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="api key not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="api key not found")
         return {"revoked": key_id}
     finally:
         await get_pool().release(conn)

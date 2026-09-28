@@ -91,9 +91,7 @@ async def set_property_status(
     Raises ValueError on an illegal transition so the route can answer 409
     instead of silently 'succeeding'.
     """
-    current = await conn.fetchval(
-        "SELECT status FROM property WHERE id = $1", property_id
-    )
+    current = await conn.fetchval("SELECT status FROM property WHERE id = $1", property_id)
     if current is None:
         return None
     if new_status not in _TRANSITIONS.get(current, set()):

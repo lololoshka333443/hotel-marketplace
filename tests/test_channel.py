@@ -34,7 +34,9 @@ async def _seed(conn: asyncpg.Connection, email: str, total_units: int = 1) -> d
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -97,9 +99,7 @@ async def test_create_key_returns_plaintext_once(db_conn) -> None:
     assert created["key_prefix"] == created["key"][: len("hm_live_") + 6]
 
     # The stored row has no plaintext, only the hash.
-    stored = await db_conn.fetchval(
-        "SELECT key_hash FROM api_key WHERE id = $1", created["id"]
-    )
+    stored = await db_conn.fetchval("SELECT key_hash FROM api_key WHERE id = $1", created["id"])
     assert stored is not None
     assert created["key"] not in stored
 
@@ -159,9 +159,7 @@ async def test_channel_booking_confirms_and_sells(committed_conn) -> None:
     created = await service.create_key(committed_conn, seed["partner_id"], "API")
     key = await service.resolve_key(committed_conn, created["key"])
 
-    out = await service.create_channel_booking(
-        committed_conn, **_push(seed, created["key"])
-    )
+    out = await service.create_channel_booking(committed_conn, **_push(seed, created["key"]))
     assert out["status"] == "confirmed"
     assert out["total_amount"] == 6000.0
 
@@ -214,7 +212,9 @@ async def test_idempotency_key_conflict_on_different_dates(committed_conn) -> No
         await service.create_channel_booking(
             committed_conn,
             **_push(
-                seed, created["key"], idem="req-1",
+                seed,
+                created["key"],
+                idem="req-1",
                 checkin=TODAY + dt.timedelta(days=40),
                 checkout=TODAY + dt.timedelta(days=41),
             ),
@@ -230,16 +230,13 @@ async def test_channel_booking_respects_stop_sell(committed_conn) -> None:
     created = await service.create_key(committed_conn, seed["partner_id"], "API")
 
     await committed_conn.execute(
-        "UPDATE inventory_day SET closed = true "
-        "WHERE unit_type_id = $1 AND date = $2",
+        "UPDATE inventory_day SET closed = true WHERE unit_type_id = $1 AND date = $2",
         seed["unit_type_id"],
         TODAY + dt.timedelta(days=10),
     )
 
     with pytest.raises(booking_service.NotAvailable) as exc:
-        await service.create_channel_booking(
-            committed_conn, **_push(seed, created["key"])
-        )
+        await service.create_channel_booking(committed_conn, **_push(seed, created["key"]))
     assert "closed" in str(exc.value)
 
 
@@ -269,7 +266,8 @@ async def test_channel_booking_never_oversells(committed_conn) -> None:
     await service.create_channel_booking(
         committed_conn,
         **_push(
-            seed, created["key"],
+            seed,
+            created["key"],
             checkin=TODAY + dt.timedelta(days=20),
             checkout=TODAY + dt.timedelta(days=22),
         ),
@@ -280,7 +278,9 @@ async def test_channel_booking_never_oversells(committed_conn) -> None:
         await service.create_channel_booking(
             committed_conn,
             **_push(
-                seed, created["key"], idem="req-2",
+                seed,
+                created["key"],
+                idem="req-2",
                 checkin=TODAY + dt.timedelta(days=21),
                 checkout=TODAY + dt.timedelta(days=23),
             ),
@@ -295,24 +295,26 @@ async def test_cancel_releases_sold_inventory(committed_conn) -> None:
     seed = await _seed(committed_conn, "c7@example.com")
     created = await service.create_key(committed_conn, seed["partner_id"], "API")
 
-    out = await service.create_channel_booking(
-        committed_conn, **_push(seed, created["key"])
+    out = await service.create_channel_booking(committed_conn, **_push(seed, created["key"]))
+    assert (
+        await committed_conn.fetchval(
+            "SELECT sold FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
+            seed["unit_type_id"],
+            TODAY + dt.timedelta(days=10),
+        )
+        == 1
     )
-    assert await committed_conn.fetchval(
-        "SELECT sold FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
-        seed["unit_type_id"],
-        TODAY + dt.timedelta(days=10),
-    ) == 1
 
-    cancelled = await service.cancel_channel_booking(
-        committed_conn, seed["partner_id"], out["id"]
-    )
+    cancelled = await service.cancel_channel_booking(committed_conn, seed["partner_id"], out["id"])
     assert cancelled["status"] == "refunded"
-    assert await committed_conn.fetchval(
-        "SELECT sold FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
-        seed["unit_type_id"],
-        TODAY + dt.timedelta(days=10),
-    ) == 0
+    assert (
+        await committed_conn.fetchval(
+            "SELECT sold FROM inventory_day WHERE unit_type_id = $1 AND date = $2",
+            seed["unit_type_id"],
+            TODAY + dt.timedelta(days=10),
+        )
+        == 0
+    )
 
 
 @pytest.mark.asyncio
@@ -321,9 +323,7 @@ async def test_cancel_refuses_other_partners_booking(committed_conn) -> None:
     seed_b = await _seed(committed_conn, "c8b@example.com")
     created_a = await service.create_key(committed_conn, seed_a["partner_id"], "API")
 
-    out = await service.create_channel_booking(
-        committed_conn, **_push(seed_a, created_a["key"])
-    )
+    out = await service.create_channel_booking(committed_conn, **_push(seed_a, created_a["key"]))
 
     with pytest.raises(service.NotOwned):
         await service.cancel_channel_booking(committed_conn, seed_b["partner_id"], out["id"])
@@ -349,6 +349,4 @@ async def test_web_booking_invisible_to_channel_cancel(committed_conn) -> None:
         )
 
     with pytest.raises(service.NotOwned):
-        await service.cancel_channel_booking(
-            committed_conn, seed["partner_id"], web_hold["id"]
-        )
+        await service.cancel_channel_booking(committed_conn, seed["partner_id"], web_hold["id"])
