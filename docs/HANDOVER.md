@@ -99,9 +99,7 @@ hotel-marketplace/
 2. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation,
    retention доставки, лимит backlog, харденинг секретов — *сделано*
 3. **Текущий шаг:** долги из `docs/handover/HANDOVER.md` — window.location.replace
-   после логина, шардирование outbox
-   — skip-link, переключатель тёмной темы, tertiary-токен палитры, лейбл
-   поиска
+   после логина, шардирование outbox (подробности и бэклог — там же)
 
 ## Нюансы, которые надо помнить
 
