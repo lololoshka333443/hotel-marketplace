@@ -98,7 +98,8 @@ hotel-marketplace/
    1 write-API адаптер канала, outbox + sync worker — *сделано*
 2. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation,
    retention доставки, лимит backlog, харденинг секретов — *сделано*
-3. **Текущий шаг:** a11y-polish из аудита (`docs/handover/AUDIT-design-a11y.md`)
+3. **Текущий шаг:** регистрация партнёра на UI (бэк есть, экрана нет) —
+   `docs/handover/HANDOVER.md`
    — skip-link, переключатель тёмной темы, tertiary-токен палитры, лейбл
    поиска
 
