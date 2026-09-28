@@ -210,6 +210,12 @@ export interface OutboxMetrics {
   scheduled_for_retry: number;
   median_latency_sec: number;
   oldest_pending_sec: number;
+  /** How deep the queue may grow before bulk events are shed. */
+  depth_limit: number;
+  /** How old a pending event may be before the strip flags it. */
+  lag_alert_sec: number;
+  /** Events dropped by the backlog limit since the counter began. */
+  shed_total: number;
 }
 
 export interface ReconciliationEvent {

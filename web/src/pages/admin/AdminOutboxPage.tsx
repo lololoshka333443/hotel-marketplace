@@ -194,7 +194,10 @@ function OutboxMetricsStrip() {
   }
 
   const cells: { label: string; value: string }[] = [
-    { label: "В очереди", value: String(data.pending) },
+    {
+      label: "В очереди",
+      value: `${data.pending} / ${data.depth_limit}`,
+    },
     { label: "В доставке", value: String(data.delivering) },
     {
       label: "Ждут ретрая",
@@ -209,21 +212,47 @@ function OutboxMetricsStrip() {
       label: "Самое старое в очереди",
       value: data.oldest_pending_sec ? `${data.oldest_pending_sec} с` : "—",
     },
+    {
+      label: "Сброшено лимитом",
+      value: String(data.shed_total),
+    },
   ];
 
+  // The queue is older than the configured lag: events are arriving faster
+  // than the worker can push them out, so something is falling behind.
+  const isLagging =
+    data.oldest_pending_sec >= data.lag_alert_sec && data.pending > 0;
+  // At the depth limit, bulk events are being shed right now — bookings still
+  // go out, but the channels must pull rates and availability themselves.
+  const isShedding = data.pending >= data.depth_limit;
+
   return (
-    <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      {cells.map((cell) => (
+    <div className="mt-6 space-y-3">
+      {isLagging || isShedding ? (
         <div
-          key={cell.label}
-          className="rounded-lg border border-border-default bg-surface-card p-3"
+          role="alert"
+          className="rounded-lg border border-border-default bg-feedback-warning-bg p-3 text-sm text-feedback-warning-text"
         >
-          <dt className="text-xs text-text-tertiary">{cell.label}</dt>
-          <dd className="mt-1 text-lg font-semibold tabular-nums">
-            {cell.value}
-          </dd>
+          {isShedding
+            ? "Очередь достигла лимита — массовые события (цены, доступность) сбрасываются, пока воркер не разгребет отставание. Бронирования доставляются как обычно, тарифы канал забирает через read-API."
+            : `Очередь отстаёт: самое старое событие ждёт уже ${Math.round(
+                data.oldest_pending_sec / 60,
+              )} мин. Стоит проверить работоспособность вебхуков партнёра.`}
         </div>
-      ))}
-    </dl>
+      ) : null}
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {cells.map((cell) => (
+          <div
+            key={cell.label}
+            className="rounded-lg border border-border-default bg-surface-card p-3"
+          >
+            <dt className="text-xs text-text-tertiary">{cell.label}</dt>
+            <dd className="mt-1 text-lg font-semibold tabular-nums">
+              {cell.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
