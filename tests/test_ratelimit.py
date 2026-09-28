@@ -37,7 +37,7 @@ from app.utils import ratelimit
 TODAY = dt.date.today()
 
 _CLEANUP = (
-    "DELETE FROM webhook_delivery; "
+    "DELETE FROM outbox_shed_counter; DELETE FROM webhook_delivery; "
     "DELETE FROM outbox_event; "
     "DELETE FROM webhook_subscription; "
     "DELETE FROM api_key; "
@@ -69,7 +69,9 @@ async def _seed(conn: asyncpg.Connection, email: str) -> dict:
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -263,9 +265,7 @@ def test_write_limit_returns_429(client: TestClient, world: dict) -> None:
         "guest": {"name": "Иван", "email": "g-rl2@example.com", "phone": "+79991234567"},
         "idempotency_key": f"rl-{uuid.uuid4()}",
     }
-    first = client.post(
-        "/v1/channel/bookings", json=payload, headers={"X-API-Key": world["key"]}
-    )
+    first = client.post("/v1/channel/bookings", json=payload, headers={"X-API-Key": world["key"]})
     assert first.status_code == 201, first.text
     second = client.post(
         "/v1/channel/bookings",
@@ -281,7 +281,11 @@ def test_401_still_trumps_429(client: TestClient, world: dict) -> None:
     for _ in range(3):
         resp = client.get(
             "/v1/channel/rates",
-            params={"unit_type_id": world["unit_type_id"], "date_from": _day(0), "date_to": _day(3)},
+            params={
+                "unit_type_id": world["unit_type_id"],
+                "date_from": _day(0),
+                "date_to": _day(3),
+            },
             headers={"X-API-Key": "hm_live_bogus"},
         )
         assert resp.status_code == 401
@@ -369,4 +373,11 @@ async def test_queue_metrics_shape(committed_conn) -> None:
         "scheduled_for_retry",
         "median_latency_sec",
         "oldest_pending_sec",
+        "depth_limit",
+        "lag_alert_sec",
+        "shed_total",
     }
+    # The strip shows the configured lines, not guessed ones.
+    assert metrics["depth_limit"] == settings.outbox_max_pending
+    assert metrics["lag_alert_sec"] == settings.outbox_lag_alert_sec
+    assert metrics["shed_total"] == 0

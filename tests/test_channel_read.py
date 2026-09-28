@@ -33,7 +33,7 @@ TODAY = dt.date.today()
 
 # Same order as the FK graph; the whole world this module seeds is wiped here.
 _CLEANUP = (
-    "DELETE FROM webhook_delivery; "
+    "DELETE FROM outbox_shed_counter; DELETE FROM webhook_delivery; "
     "DELETE FROM outbox_event; "
     "DELETE FROM webhook_subscription; "
     "DELETE FROM api_key; "
@@ -64,7 +64,9 @@ async def _seed(
         conn,
         partner_id,
         PropertyCreate(
-            name="Test", property_type="apartment", city="Koktebel",
+            name="Test",
+            property_type="apartment",
+            city="Koktebel",
             timezone="Europe/Simferopol",
         ),
     )
@@ -117,8 +119,11 @@ async def test_rates_match_what_partner_set(db_conn) -> None:
     )
 
     out = await service.get_channel_rates(
-        db_conn, seed["partner_id"], seed["unit_type_id"],
-        TODAY, TODAY + dt.timedelta(days=4),
+        db_conn,
+        seed["partner_id"],
+        seed["unit_type_id"],
+        TODAY,
+        TODAY + dt.timedelta(days=4),
     )
     assert out["unit_type_id"] == seed["unit_type_id"]
     assert out["currency"] == "RUB"
@@ -139,8 +144,11 @@ async def test_rates_fall_back_to_base_price(db_conn) -> None:
     await rate_service.create_rate_plan(db_conn, seed["unit_type_id"], "База")
 
     out = await service.get_channel_rates(
-        db_conn, seed["partner_id"], seed["unit_type_id"],
-        TODAY, TODAY + dt.timedelta(days=3),
+        db_conn,
+        seed["partner_id"],
+        seed["unit_type_id"],
+        TODAY,
+        TODAY + dt.timedelta(days=3),
     )
     assert len(out["days"]) == 3
     assert all(d["price"] == 2500 for d in out["days"])
@@ -152,8 +160,11 @@ async def test_rates_base_price_without_any_plan(db_conn) -> None:
     seed = await _seed(db_conn, "rd2@example.com", base_price=1990)
 
     out = await service.get_channel_rates(
-        db_conn, seed["partner_id"], seed["unit_type_id"],
-        TODAY, TODAY + dt.timedelta(days=2),
+        db_conn,
+        seed["partner_id"],
+        seed["unit_type_id"],
+        TODAY,
+        TODAY + dt.timedelta(days=2),
     )
     assert all(d["price"] == 1990 for d in out["days"])
 
@@ -168,8 +179,11 @@ async def test_rates_reject_bad_range(db_conn) -> None:
         )
     with pytest.raises(service.BadRange):
         await service.get_channel_rates(
-            db_conn, seed["partner_id"], seed["unit_type_id"],
-            TODAY, TODAY + dt.timedelta(days=200),
+            db_conn,
+            seed["partner_id"],
+            seed["unit_type_id"],
+            TODAY,
+            TODAY + dt.timedelta(days=200),
         )
 
 
@@ -245,8 +259,11 @@ async def test_availability_unreachable_day_is_not_free(db_conn) -> None:
     seed = await _seed(db_conn, "rh@example.com")
 
     out = await service.get_channel_availability(
-        db_conn, seed["partner_id"], seed["unit_type_id"],
-        TODAY + dt.timedelta(days=400), TODAY + dt.timedelta(days=402),
+        db_conn,
+        seed["partner_id"],
+        seed["unit_type_id"],
+        TODAY + dt.timedelta(days=400),
+        TODAY + dt.timedelta(days=402),
     )
     assert [d["free"] for d in out["days"]] == [0, 0]
     assert all(d["closed"] is False for d in out["days"])
@@ -256,6 +273,7 @@ async def test_availability_unreachable_day_is_not_free(db_conn) -> None:
 #
 # The app is booted once for the module: the routes own their connections, so
 # the seeded world has to be committed and cleaned up afterwards.
+
 
 @pytest.fixture(scope="module")
 async def world() -> AsyncIterator[dict]:
@@ -273,8 +291,7 @@ async def world() -> AsyncIterator[dict]:
             conn, rp["id"], TODAY + dt.timedelta(days=4), TODAY + dt.timedelta(days=8), price=4200
         )
         await conn.execute(
-            "UPDATE inventory_day SET closed = true "
-            "WHERE unit_type_id = $1 AND date = $2",
+            "UPDATE inventory_day SET closed = true WHERE unit_type_id = $1 AND date = $2",
             mine["unit_type_id"],
             TODAY + dt.timedelta(days=6),
         )
