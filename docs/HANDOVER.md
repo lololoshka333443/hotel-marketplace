@@ -98,8 +98,8 @@ hotel-marketplace/
    1 write-API адаптер канала, outbox + sync worker — *сделано*
 2. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation,
    retention доставки, лимит backlog, харденинг секретов — *сделано*
-3. **Текущий шаг:** долги из `docs/handover/HANDOVER.md` — window.location.replace
-   после логина, шардирование outbox (подробности и бэклог — там же)
+3. **Текущий шаг:** бэклог из `docs/handover/HANDOVER.md` — шардирование outbox,
+   ротация `WEBHOOK_SEAL_KEY`, i18n (английский)
 
 ## Нюансы, которые надо помнить
 
