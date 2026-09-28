@@ -458,9 +458,18 @@ async def test_creating_a_webhook_seals_the_secret(committed_conn) -> None:
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    assert response.status_code == 201
-    created = response.json()
-    assert "secret" not in created
+        assert response.status_code == 201
+        created = response.json()
+        assert "secret" not in created
+
+        # The listing must not hand the secret back either — it is shown once,
+        # at creation, and after that only the sealed column holds it.
+        listed = client.get(
+            "/v1/partner/webhooks",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert listed.status_code == 200
+        assert "secret" not in listed.text
 
     sealed = await committed_conn.fetchval(
         "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", created["id"]

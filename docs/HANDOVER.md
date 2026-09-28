@@ -94,11 +94,13 @@ hotel-marketplace/
 
 ## Что дальше (по плану)
 
-1. **Текущий шаг:** тексты на русском (ux-writing) + дизайн-ревью + a11y-аудит
-   по готовым экранам
-2. **Phase 2:** iCal export (отдаём .ics), iCal import (read-only занятость),
-   1 write-API адаптер канала, outbox + sync worker
-3. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation
+1. **Phase 2:** iCal export (отдаём .ics), iCal import (read-only занятость),
+   1 write-API адаптер канала, outbox + sync worker — *сделано*
+2. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation,
+   retention доставки, лимит backlog, харденинг секретов — *сделано*
+3. **Текущий шаг:** a11y-polish из аудита (`docs/handover/AUDIT-design-a11y.md`)
+   — skip-link, переключатель тёмной темы, tertiary-токен палитры, лейбл
+   поиска
 
 ## Нюансы, которые надо помнить
 
@@ -108,6 +110,9 @@ hotel-marketplace/
   же интерфейса `PaymentProvider`
 - Часовой пояс Крыма — `Europe/Simferopol` (не Asia)
 - Комиссия снапшотится при подтверждении; отчёты её не пересчитывают
-- Пароль в auth — SHA-256 заглушка, заменить на bcrypt/argon2 перед боем
+- Пароль в auth — argon2id, как и API-ключи; старые SHA-256 строки
+  доживают свой век и пере-хешируются при следующем входе. Секрет
+  webhook-подписки опечатан (`WEBHOOK_SEAL_KEY`), без ключа доставка
+  не подписывается
 - Seed: перезапуск привязывает все объекты к текущему партнёру (фикс от
   предыдущей сессии)
