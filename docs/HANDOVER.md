@@ -55,7 +55,7 @@ Double booking невозможен по архитектуре.
 ```bash
 cd /Users/guuu/Desktop/hotel-marketplace
 uv sync                                       # бэкенд-зависимости
-uv run python -m app.db.migrate               # миграции (1..17)
+uv run python -m app.db.migrate               # миграции (1..18)
 uv run uvicorn app.main:app --port 8000       # API + собранный фронт на :8000
 uv run pytest tests/ -q                       # 192 теста
 uv run ruff check app tests && uv run ruff format app tests
@@ -98,10 +98,16 @@ hotel-marketplace/
    1 write-API адаптер канала, outbox + sync worker — *сделано*
 2. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation,
    retention доставки, лимит backlog, харденинг секретов — *сделано*
-3. **Текущий шаг:** бэклог — шардирование outbox и i18n (английский).
+3. **Текущий шаг:** бэклог — i18n (английский).
    Ротация `WEBHOOK_SEAL_KEY` сделана: исходящий ключ живёт в
    `WEBHOOK_SEAL_KEY_PREVIOUS`, пока `scripts/rotate_seal_key.py` не переведёт
    все секреты на новый (инвариант 8 в `docs/handover/HANDOVER.md`).
+   **Шардирование outbox сделано:** 16 логических шардов по свойству
+   (`abs(hashtext(...)) % 16` в SQL) + 4 воркера доставки непересекающимися
+   группами. Параллельная доставка ×4, изоляция партнёров, пер-объектная
+   упорядоченность сохранена. Физическое партицирование сознательно отказано
+   (draining-очередь: PK `(shard, id)` + full-rewrite не стоят этого).
+   Подробности — раздел «Что сделано в этом срезе» в `docs/handover/HANDOVER.md`.
 
 ## Нюансы, которые надо помнить
 
