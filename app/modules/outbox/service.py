@@ -75,8 +75,10 @@ async def emit(
         await conn.execute(
             """
             INSERT INTO outbox_event
-                (aggregate, aggregate_id, event_type, payload, property_id, priority)
-            VALUES ($1, $2, $3, $4, $5, $6)
+                (aggregate, aggregate_id, event_type, payload, property_id,
+                 priority, shard)
+            VALUES ($1, $2, $3, $4, $5, $6,
+                    abs(hashtext(coalesce($8, $2))) % $7)
             """,
             aggregate,
             aggregate_id,
@@ -84,6 +86,8 @@ async def emit(
             json.dumps(payload, default=str),
             property_id,
             priority,
+            settings.outbox_shard_count,
+            property_id,
         )
     except Exception as exc:
         # Never let a logging failure roll back a booking.
@@ -108,18 +112,27 @@ async def property_of_rate_plan(conn: asyncpg.Connection, rate_plan_id: str) -> 
 # ---- worker-facing half ----------------------------------------------------
 
 
-async def claim_due(conn: asyncpg.Connection, limit: int = 50) -> list[dict]:
+async def claim_due(
+    conn: asyncpg.Connection, limit: int = 50, shards: list[int] | None = None
+) -> list[dict]:
     """Claim pending events for delivery.
 
     Claims by flipping status to 'delivering' in the same statement, exactly
     like the iCal importer's list_due: no lock is held across the network calls
     that follow. If this process dies, the reclaim loop puts the rows back.
+
+    `shards` restricts the claim to a slice of the queue — a delivery worker
+    owns a disjoint subset of shards, so the workers parallelise without
+    stealing each other's rows (SKIP LOCKED would keep that correct even if
+    they overlapped). None claims across the whole table: the reclaim path and
+    tests do not care which shard a row is on.
     """
     rows = await conn.fetch(
         """
         WITH due AS (
             SELECT id FROM outbox_event
             WHERE status = 'pending' AND next_attempt_at <= now()
+              AND ($2::smallint[] IS NULL OR shard = ANY($2::smallint[]))
             ORDER BY priority, next_attempt_at, happened_at
             LIMIT $1
             FOR UPDATE SKIP LOCKED
@@ -132,6 +145,7 @@ async def claim_due(conn: asyncpg.Connection, limit: int = 50) -> list[dict]:
                   priority, next_attempt_at
         """,
         limit,
+        shards,
     )
     # The UPDATE re-scans the table, so RETURNING comes back in the scan's
     # order, not the CTE's. Claiming is still correct either way (the batch is
@@ -230,6 +244,11 @@ async def queue_metrics(conn: asyncpg.Connection) -> dict:
         "depth_limit": settings.outbox_max_pending,
         "lag_alert_sec": settings.outbox_lag_alert_sec,
         "shed_total": int(row["shed_total"]),
+        # The queue's fan-out, so the strip shows how much parallelism a depth
+        # number is spread across — one depth behind four workers is not the
+        # same emergency as one behind one.
+        "shard_count": settings.outbox_shard_count,
+        "workers": settings.outbox_workers,
     }
 
 

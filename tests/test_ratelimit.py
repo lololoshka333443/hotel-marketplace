@@ -372,8 +372,12 @@ async def test_queue_metrics_shape(committed_conn) -> None:
         "depth_limit",
         "lag_alert_sec",
         "shed_total",
+        "shard_count",
+        "workers",
     }
     # The strip shows the configured lines, not guessed ones.
     assert metrics["depth_limit"] == settings.outbox_max_pending
     assert metrics["lag_alert_sec"] == settings.outbox_lag_alert_sec
     assert metrics["shed_total"] == 0
+    assert metrics["shard_count"] == settings.outbox_shard_count
+    assert metrics["workers"] == settings.outbox_workers

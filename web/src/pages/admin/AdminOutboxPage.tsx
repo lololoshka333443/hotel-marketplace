@@ -216,6 +216,10 @@ function OutboxMetricsStrip() {
       label: "Сброшено лимитом",
       value: String(data.shed_total),
     },
+    {
+      label: "Воркеры доставки",
+      value: `${data.workers} × ${data.shard_count} шард.`,
+    },
   ];
 
   // The queue is older than the configured lag: events are arriving faster

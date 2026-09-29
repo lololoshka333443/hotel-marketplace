@@ -57,25 +57,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     from app.jobs.reaper import reaper_loop
     from app.modules.outbox.retention import retention_loop
-    from app.modules.outbox.worker import outbox_loop
+    from app.modules.outbox.worker import outbox_loop, shard_groups
     from app.modules.sync.poller import import_loop
     from app.utils.redis import close_redis
 
     reaper_task = asyncio.create_task(reaper_loop())
     import_task = asyncio.create_task(import_loop())
-    outbox_task = asyncio.create_task(outbox_loop())
+    # One delivery loop per shard group: the outbox drains in parallel, and a
+    # partner's burst no longer sits in another partner's claim order.
+    outbox_tasks = [asyncio.create_task(outbox_loop(group)) for group in shard_groups()]
     retention_task = asyncio.create_task(retention_loop())
 
     yield
 
     reaper_task.cancel()
     import_task.cancel()
-    outbox_task.cancel()
+    for task in outbox_tasks:
+        task.cancel()
     retention_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await reaper_task
         await import_task
-        await outbox_task
+        await asyncio.gather(*outbox_tasks)
         await retention_task
 
     await close_redis()

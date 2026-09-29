@@ -70,6 +70,18 @@ class Settings(BaseSettings):
     # behind, in seconds since the oldest pending event.
     outbox_lag_alert_sec: int = Field(default=300)
 
+    # ----- Outbox sharding -----
+    # The queue is sliced into this many logical shards by the property the
+    # event is about (hashtext % this, computed in SQL). Each delivery worker
+    # owns a disjoint subset, so delivery parallelises and one partner's burst
+    # never sits in another's claim order. Changing this needs a re-backfill of
+    # the shard column — old rows keep their value, so nothing breaks, only the
+    # spread goes uneven.
+    outbox_shard_count: int = Field(default=16)
+    # Concurrent delivery loops. Worker k owns shards s where s % this == k.
+    # SKIP LOCKED keeps claiming correct even if these overlap.
+    outbox_workers: int = Field(default=4)
+
     # ----- Sealing -----
     # Webhook subscription secrets must be readable back to sign outgoing
     # deliveries, so they are sealed (authenticated encryption) rather than

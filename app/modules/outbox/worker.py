@@ -31,24 +31,46 @@ STALE_SEC = 300
 BATCH = 50
 
 
-async def outbox_loop() -> None:
-    """Forever: reclaim orphans, then deliver what is due."""
+def shards_for_worker(worker: int, workers: int, shard_count: int) -> list[int]:
+    """The shards one delivery loop owns.
+
+    Worker k gets every shard whose number is k mod workers — a disjoint
+    spread over the queue, and a contiguous restart keeps each shard with one
+    owner. With more shards than workers (the normal case) every worker holds
+    several; with fewer, shards repeat across workers and SKIP LOCKED keeps
+    even that configuration correct.
+    """
+    return [s for s in range(shard_count) if s % workers == worker]
+
+
+def shard_groups() -> list[list[int]]:
+    """One shard list per delivery worker, in worker order."""
+    workers = settings.outbox_workers
+    return [shards_for_worker(k, workers, settings.outbox_shard_count) for k in range(workers)]
+
+
+async def outbox_loop(shards: list[int] | None = None) -> None:
+    """Forever: reclaim orphans, then deliver what is due in this slice.
+
+    `shards` pins this loop to a subset of the queue; None keeps the old
+    single-queue behaviour (used by tests, which do not start the loops).
+    """
     while True:
         try:
             pool = get_pool()
             conn = await pool.acquire()
             try:
                 await service.reclaim_stale(conn, STALE_SEC)
-                await _run_batch(conn)
+                await _run_batch(conn, shards)
             finally:
                 await pool.release(conn)
         except Exception as exc:
-            log.error("outbox-loop-error", error=str(exc))
+            log.error("outbox-loop-error", error=str(exc), shards=shards)
         await asyncio.sleep(settings.outbox_poll_interval_sec)
 
 
-async def _run_batch(conn: asyncpg.Connection) -> None:
-    events = await service.claim_due(conn, BATCH)
+async def _run_batch(conn: asyncpg.Connection, shards: list[int] | None) -> None:
+    events = await service.claim_due(conn, BATCH, shards)
     if not events:
         return
 

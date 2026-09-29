@@ -216,6 +216,10 @@ export interface OutboxMetrics {
   lag_alert_sec: number;
   /** Events dropped by the backlog limit since the counter began. */
   shed_total: number;
+  /** How many logical shards the queue is sliced into. */
+  shard_count: number;
+  /** How many delivery workers drain those shards in parallel. */
+  workers: number;
 }
 
 export interface ReconciliationEvent {
