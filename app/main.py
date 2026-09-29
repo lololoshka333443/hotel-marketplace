@@ -135,14 +135,6 @@ def create_app() -> FastAPI:
             StaticFiles(directory=static_dir / "assets"),
             name="assets",
         )
-        # Room photos and other public/ files (stable paths, served as-is).
-        rooms_dir = static_dir / "rooms"
-        if rooms_dir.is_dir():
-            app.mount(
-                "/rooms",
-                StaticFiles(directory=rooms_dir),
-                name="rooms",
-            )
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict:

@@ -28,15 +28,9 @@ PARTNER_PASSWORD = "demo-password"
 ADMIN_EMAIL = "admin@example.com"
 ADMIN_PASSWORD = "admin-password"
 
-# Room photos (optimized WebP). Used as examples of what a partner uploads.
-PHOTOS = {
-    1: ["/rooms/1/IMG_0062.webp", "/rooms/1/IMG_0064.webp", "/rooms/1/IMG_0077.webp"],
-    2: ["/rooms/2/IMG_0117.webp", "/rooms/2/IMG_0129.webp", "/rooms/2/IMG_0136.webp"],
-    3: ["/rooms/3/photo_5298498534154293983_y.webp", "/rooms/3/photo_5298498534154293968_y.webp"],
-    4: ["/rooms/4/IMG_1859.webp", "/rooms/4/IMG_2940.webp"],
-    5: ["/rooms/5/IMG_0023.webp", "/rooms/5/IMG_0047.webp"],
-    6: ["/rooms/6/IMG_E7590.webp", "/rooms/6/IMG_5242.webp"],
-}
+# Room photos used to live in web/public/rooms and be wired in here. Photos
+# now belong to the partner API (upload of a photo against a property), and
+# until that lands the demo catalogue simply shows no photos.
 
 PROPERTIES = [
     {
@@ -87,8 +81,6 @@ async def main() -> int:
             )
 
             for property_def in PROPERTIES:
-                room_numbers = [r[0] for r in property_def["rooms"]]
-                photos_json = json.dumps([p for n in room_numbers for p in PHOTOS.get(n, [])])
                 address = json.dumps({"settlement": "Коктебель", "region": "Крым"})
 
                 property_id = await conn.fetchval(
@@ -100,7 +92,7 @@ async def main() -> int:
                     """,
                     partner_id,
                     property_def["name"],
-                    photos_json,
+                    "[]",
                 )
                 if property_id is None:
                     property_id = await conn.fetchval(
@@ -114,7 +106,7 @@ async def main() -> int:
                         partner_id,
                         property_def["name"],
                         address,
-                        photos_json,
+                        "[]",
                     )
 
                 for room_no, room_name, capacity, total_units, base_price in property_def["rooms"]:

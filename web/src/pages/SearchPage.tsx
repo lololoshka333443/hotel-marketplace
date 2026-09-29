@@ -79,12 +79,21 @@ export function SearchPage() {
               key={property.id}
               className="flex flex-col overflow-hidden rounded-lg border border-border-default bg-surface-card"
             >
-              <img
-                src={(property.photos?.[0] as string | undefined) ?? undefined}
-                alt={property.name}
-                className="aspect-4/3 w-full object-cover"
-                loading="lazy"
-              />
+              {property.photos?.[0] ? (
+                <img
+                  src={property.photos[0]}
+                  alt={property.name}
+                  className="aspect-4/3 w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="flex aspect-4/3 w-full items-center justify-center bg-surface-sunken text-sm text-text-tertiary"
+                >
+                  Фото скоро появятся
+                </div>
+              )}
               <div className="flex flex-1 flex-col p-4">
                 <p className="text-xs uppercase tracking-wide text-text-secondary">
                   {property.property_type}

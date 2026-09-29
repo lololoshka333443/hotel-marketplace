@@ -14,22 +14,13 @@ export function HomePage() {
 
   return (
     <div>
-      {/* hero */}
-      <section className="relative isolate overflow-hidden">
-        <img
-          src="/rooms/3/photo_5298498534154293983_y.webp"
-          alt="Вид на море и горы из номера в Коктебеле"
-          className="absolute inset-0 -z-10 h-full w-full object-cover"
-          loading="eager"
-          fetchPriority="high"
-        />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/30 via-black/45 to-surface-page" />
+      {/* hero — the photo background went away with web/public/rooms; the
+          redesign replaces this section. For now a brand-tinted gradient. */}
+      <section className="relative isolate overflow-hidden bg-gradient-to-b from-action-primary/20 to-surface-page">
         {/* ds-allow-hardcode:start - hero min height: fixed editorial measure,
          * not part of the spacing scale. */}
         <div className="mx-auto flex min-h-[420px] max-w-7xl items-end px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           {/* ds-allow-hardcode:end */}
-          {/* scrim: white text over an arbitrary photo needs a guaranteed
-              backdrop, not a gradient that fades to the page color. */}
           <div className="max-w-2xl rounded-lg bg-scrim p-6 sm:p-8">
             <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
               Жильё в Крыму у моря
@@ -81,12 +72,21 @@ export function HomePage() {
                 key={property.id}
                 className="overflow-hidden rounded-lg border border-border-default bg-surface-card"
               >
-                <img
-                  src={(property.photos?.[0] as string | undefined) ?? undefined}
-                  alt={property.name}
-                  className="h-52 w-full object-cover"
-                  loading="lazy"
-                />
+                {property.photos?.[0] ? (
+                  <img
+                    src={property.photos[0]}
+                    alt={property.name}
+                    className="h-52 w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="flex h-52 w-full items-center justify-center bg-surface-sunken text-sm text-text-tertiary"
+                  >
+                    Фото скоро появятся
+                  </div>
+                )}
                 <div className="p-5">
                   <h3 className="text-lg font-semibold">{property.name}</h3>
                   <p className="mt-1 text-sm text-text-secondary">
