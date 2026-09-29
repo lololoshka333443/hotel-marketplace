@@ -128,9 +128,7 @@ def unseal(token: str) -> str:
             return _fernet(key).decrypt(token.encode()).decode()
         except (InvalidToken, ValueError) as exc:
             errors.append(exc)
-    raise RuntimeError("webhook secret could not be unsealed") from (
-        errors[-1] if errors else None
-    )
+    raise RuntimeError("webhook secret could not be unsealed") from (errors[-1] if errors else None)
 
 
 def seal_key_is_configured() -> bool:

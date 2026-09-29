@@ -572,9 +572,12 @@ async def test_rotating_the_seal_key_re_seals_every_row(committed_conn) -> None:
     assert second["resealed"] == 0
     assert second["already_current"] == 2
 
-    assert await committed_conn.fetchval(
-        "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", kept["id"]
-    ) == kept["secret_sealed"]
+    assert (
+        await committed_conn.fetchval(
+            "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", kept["id"]
+        )
+        == kept["secret_sealed"]
+    )
     moved = await committed_conn.fetchval(
         "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", stale["id"]
     )
@@ -612,6 +615,9 @@ async def test_rotation_reports_unsealable_rows(committed_conn) -> None:
 
     assert stats["unsealable"] == 1
     # The row is untouched: garbage in, garbage out is not an option.
-    assert await committed_conn.fetchval(
-        "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", sub_id
-    ) is not None
+    assert (
+        await committed_conn.fetchval(
+            "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", sub_id
+        )
+        is not None
+    )

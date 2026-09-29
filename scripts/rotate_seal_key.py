@@ -38,9 +38,7 @@ _LEGACY_PREFIX = "LEGACY:"
 
 # A Fernet token is urlsafe-base64: letters, digits, -, _, = padding and the
 # dots Fernet uses as separators. A plaintext secret never looks like that.
-_TOKEN_CHARS = set(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.="
-)
+_TOKEN_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.=")
 
 
 def _looks_like_a_token(value: str) -> bool:
@@ -113,10 +111,7 @@ async def main() -> int:
         return 2
     if stats["legacy"]:
         print("\nUnsealed LEGACY rows are re-sealed by the delivery path on first use.")
-    print(
-        "\nEverything readable is on the current key. "
-        "Drop WEBHOOK_SEAL_KEY_PREVIOUS now."
-    )
+    print("\nEverything readable is on the current key. Drop WEBHOOK_SEAL_KEY_PREVIOUS now.")
     return 0
 
 
