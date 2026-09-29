@@ -23,6 +23,7 @@ import uuid
 
 import asyncpg
 import pytest
+from cryptography.fernet import Fernet
 
 from app.config.settings import settings
 from app.modules.admin import service as admin_service
@@ -119,6 +120,39 @@ def test_seal_without_a_key_fails_closed(monkeypatch) -> None:
     assert seal_key_is_configured() is False
     with pytest.raises(RuntimeError):
         seal("a-secret")
+
+
+def test_a_rotated_key_still_reads_the_old_tokens(monkeypatch) -> None:
+    """Rotation is not an outage: the outgoing key stays readable."""
+    old_key = settings.webhook_seal_key
+    token = seal("rotation-secret")
+
+    new_key = Fernet.generate_key().decode()
+    monkeypatch.setattr(settings, "webhook_seal_key", new_key)
+    monkeypatch.setattr(settings, "webhook_seal_key_previous", "")
+
+    # Without the outgoing key the token is gone.
+    with pytest.raises(RuntimeError):
+        unseal(token)
+
+    # With it as PREVIOUS the row reads, and new secrets seal under the new key.
+    monkeypatch.setattr(settings, "webhook_seal_key_previous", old_key)
+    assert unseal(token) == "rotation-secret"
+    assert unseal(seal("fresh-secret")) == "fresh-secret"
+
+
+def test_unsealed_rows_survive_a_rotation(monkeypatch) -> None:
+    """The fallback does not make a tampered or garbage token pass."""
+    monkeypatch.setattr(settings, "webhook_seal_key_previous", Fernet.generate_key().decode())
+    with pytest.raises(RuntimeError):
+        unseal("not-a-real-token")
+
+
+def test_the_outgoing_key_must_still_be_a_real_key(monkeypatch) -> None:
+    """A stray empty PREVIOUS is skipped, not treated as a working key."""
+    monkeypatch.setattr(settings, "webhook_seal_key_previous", "")
+    token = seal("ok")
+    assert unseal(token) == "ok"
 
 
 # ---- partner login: legacy upgrade ----------------------------------------
@@ -475,3 +509,109 @@ async def test_creating_a_webhook_seals_the_secret(committed_conn) -> None:
         "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", created["id"]
     )
     assert unseal(sealed) == "route-level-secret"
+
+
+# ---- key rotation ----------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_rotating_the_seal_key_re_seals_every_row(committed_conn) -> None:
+    """The rotation script moves every secret onto the new key, idempotently."""
+    from scripts.rotate_seal_key import rotate
+
+    old_key = settings.webhook_seal_key
+    new_key = Fernet.generate_key().decode()
+    partner_id = await _property_for(committed_conn, "sec12@example.com")
+    # Two subscriptions: one already on the new key, one sealed with the
+    # outgoing key — the rotation must move the second and leave the first.
+    settings.webhook_seal_key = new_key
+    [kept, stale] = await committed_conn.fetch(
+        """
+        INSERT INTO webhook_subscription (partner_id, url, secret, secret_sealed, event_types)
+        VALUES ($1, 'http://localhost:9/a', 'keep-me', $2, '{*}'),
+               ($1, 'http://localhost:9/b', 'move-me', $3, '{*}')
+        RETURNING id::text, secret_sealed
+        """,
+        partner_id,
+        seal("keep-me"),
+        Fernet(old_key.encode()).encrypt(b"move-me").decode(),
+    )
+
+    import scripts.rotate_seal_key as rotator
+
+    original_init = rotator.init_pool
+
+    async def fake_init_pool():
+        class _P:
+            async def acquire(self):
+                return committed_conn
+
+            async def release(self, _conn):
+                pass
+
+            async def close(self):
+                pass
+
+        return _P()
+
+    rotator.init_pool = fake_init_pool
+    settings.webhook_seal_key = new_key
+    settings.webhook_seal_key_previous = old_key
+    try:
+        stats = await rotate(committed_conn)
+        # A second run is a no-op: everything is already on the current key.
+        second = await rotate(committed_conn)
+    finally:
+        settings.webhook_seal_key = old_key
+        settings.webhook_seal_key_previous = ""
+        rotator.init_pool = original_init
+
+    assert stats["resealed"] == 1
+    assert stats["already_current"] == 1
+    assert stats["unsealable"] == 0
+    assert second["resealed"] == 0
+    assert second["already_current"] == 2
+
+    assert await committed_conn.fetchval(
+        "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", kept["id"]
+    ) == kept["secret_sealed"]
+    moved = await committed_conn.fetchval(
+        "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", stale["id"]
+    )
+    assert moved != stale["secret_sealed"]
+    # The delivery path reads it with the new key alone now.
+    settings.webhook_seal_key = new_key
+    settings.webhook_seal_key_previous = ""
+    try:
+        assert unseal(moved) == "move-me"
+    finally:
+        settings.webhook_seal_key = old_key
+
+
+@pytest.mark.asyncio
+async def test_rotation_reports_unsealable_rows(committed_conn) -> None:
+    """A row neither key reads is counted, not silently re-sealed as garbage."""
+    from scripts.rotate_seal_key import rotate
+
+    partner_id = await _property_for(committed_conn, "sec13@example.com")
+    sub_id = await committed_conn.fetchval(
+        """
+        INSERT INTO webhook_subscription (partner_id, url, secret, secret_sealed, event_types)
+        VALUES ($1, 'http://localhost:9/c', 'lost', $2, '{*}')
+        RETURNING id::text
+        """,
+        partner_id,
+        Fernet(Fernet.generate_key()).encrypt(b"lost").decode(),  # a third key
+    )
+    old = settings.webhook_seal_key
+    settings.webhook_seal_key = Fernet.generate_key().decode()
+    try:
+        stats = await rotate(committed_conn)
+    finally:
+        settings.webhook_seal_key = old
+
+    assert stats["unsealable"] == 1
+    # The row is untouched: garbage in, garbage out is not an option.
+    assert await committed_conn.fetchval(
+        "SELECT secret_sealed FROM webhook_subscription WHERE id = $1", sub_id
+    ) is not None

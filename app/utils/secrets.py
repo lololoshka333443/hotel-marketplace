@@ -93,14 +93,14 @@ def needs_rehash(stored: str) -> bool:
 # ---- sealed storage --------------------------------------------------------
 
 
-def _fernet() -> Fernet:
-    key = settings.webhook_seal_key
-    if not key:
+def _fernet(key: str | None = None) -> Fernet:
+    value = key if key is not None else settings.webhook_seal_key
+    if not value:
         raise RuntimeError(
             "WEBHOOK_SEAL_KEY is not configured — webhook secrets cannot be "
             "stored without a seal key. Set it in .env (see .env.example)."
         )
-    return Fernet(key.encode())
+    return Fernet(value.encode())
 
 
 def seal(plaintext: str) -> str:
@@ -114,20 +114,43 @@ def seal(plaintext: str) -> str:
 
 
 def unseal(token: str) -> str:
-    """Decrypt a sealed secret. Raises if the seal key changed or data was tampered.
+    """Decrypt a sealed secret. Raises if neither key works or data was tampered.
 
-    A seal key rotation makes every existing secret unreadable — that is the
-    trade for a key the DB does not hold, and re-sealing is a migration.
+    Falls back to webhook_seal_key_previous so a rotation is not a delivery
+    outage: the outgoing key stays readable until the last row is re-sealed.
     """
-    try:
-        return _fernet().decrypt(token.encode()).decode()
-    except (InvalidToken, ValueError) as exc:
-        raise RuntimeError("webhook secret could not be unsealed") from exc
+    keys = [settings.webhook_seal_key, settings.webhook_seal_key_previous]
+    errors = []
+    for key in keys:
+        if not key:
+            continue
+        try:
+            return _fernet(key).decrypt(token.encode()).decode()
+        except (InvalidToken, ValueError) as exc:
+            errors.append(exc)
+    raise RuntimeError("webhook secret could not be unsealed") from (
+        errors[-1] if errors else None
+    )
 
 
 def seal_key_is_configured() -> bool:
     """Whether a seal key is present, for a startup check that fails closed."""
     return bool(settings.webhook_seal_key)
+
+
+def unseals_with_current_key(token: str) -> bool:
+    """Whether the current key alone reads this token.
+
+    A rotation walks rows sealed under the outgoing key; this tells it which
+    rows still need re-sealing and which it can leave alone.
+    """
+    if not settings.webhook_seal_key:
+        return False
+    try:
+        _fernet(settings.webhook_seal_key).decrypt(token.encode())
+    except (InvalidToken, ValueError):
+        return False
+    return True
 
 
 def _example_key() -> str:

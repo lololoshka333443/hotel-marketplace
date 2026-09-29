@@ -76,8 +76,13 @@ class Settings(BaseSettings):
     # hashed. The DB holds ciphertext only; this key is the difference between
     # a leaked table and a leaked secret. Generate with:
     #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    # Rotation re-seals every existing secret — a migration, not a restart.
+    # Rotation re-seals every existing secret: keep the outgoing key in
+    # webhook_seal_key_previous and unseal falls back to it, so deliveries keep
+    # working while scripts/rotate_seal_key.py walks the rows. Drop the previous
+    # key once the script reports nothing left on the old one.
     webhook_seal_key: str = Field(default="")
+    # The outgoing key, readable only. Empty except during a rotation.
+    webhook_seal_key_previous: str = Field(default="")
 
     # ----- Webhook delivery retention -----
     # webhook_delivery is partitioned by delivered_at, one partition a month,
