@@ -21,7 +21,7 @@ Double booking невозможен по архитектуре.
 
 ## Что готово
 
-**Бэкенд, Phase 1 (срезы 0–6), 52 теста — все зелёные:**
+**Бэкенд, Phase 1 (срезы 0–6) — основа, всё зелёное:**
 
 - 0 — skeleton, JWT (scopes partner/admin), healthz/readyz, пул asyncpg, рипер
 - 1 — партнёр + property CRUD, публичный каталог (только published)
@@ -55,9 +55,9 @@ Double booking невозможен по архитектуре.
 ```bash
 cd /Users/guuu/Desktop/hotel-marketplace
 uv sync                                       # бэкенд-зависимости
-uv run python -m app.db.migrate               # миграции (1..8)
+uv run python -m app.db.migrate               # миграции (1..17)
 uv run uvicorn app.main:app --port 8000       # API + собранный фронт на :8000
-uv run pytest tests/ -q                       # 52 теста
+uv run pytest tests/ -q                       # 192 теста
 uv run ruff check app tests && uv run ruff format app tests
 
 cd web && npm run build                       # пересобрать фронт после правок
@@ -98,8 +98,10 @@ hotel-marketplace/
    1 write-API адаптер канала, outbox + sync worker — *сделано*
 2. **Phase 3:** двусторонний API-канал, webhooks, sync тарифов, reconciliation,
    retention доставки, лимит backlog, харденинг секретов — *сделано*
-3. **Текущий шаг:** бэклог из `docs/handover/HANDOVER.md` — шардирование outbox,
-   ротация `WEBHOOK_SEAL_KEY`, i18n (английский)
+3. **Текущий шаг:** бэклог — шардирование outbox и i18n (английский).
+   Ротация `WEBHOOK_SEAL_KEY` сделана: исходящий ключ живёт в
+   `WEBHOOK_SEAL_KEY_PREVIOUS`, пока `scripts/rotate_seal_key.py` не переведёт
+   все секреты на новый (инвариант 8 в `docs/handover/HANDOVER.md`).
 
 ## Нюансы, которые надо помнить
 
@@ -112,6 +114,8 @@ hotel-marketplace/
 - Пароль в auth — argon2id, как и API-ключи; старые SHA-256 строки
   доживают свой век и пере-хешируются при следующем входе. Секрет
   webhook-подписки опечатан (`WEBHOOK_SEAL_KEY`), без ключа доставка
-  не подписывается
+  не подписывается. Ротация ключа — без даунтайма: исходящий ключ в
+  `WEBHOOK_SEAL_KEY_PREVIOUS` + `scripts/rotate_seal_key.py` (idempotent),
+  после него PREVIOUS удаляется
 - Seed: перезапуск привязывает все объекты к текущему партнёру (фикс от
   предыдущей сессии)
