@@ -52,52 +52,51 @@ export function RegisterPage() {
 
   return (
     <PageShell className="mx-auto max-w-md">
-      <h1 className="text-3xl font-bold tracking-tight">Регистрация партнёра</h1>
-      <p className="mt-2 text-text-secondary">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Партнёрам
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Регистрация партнёра
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Заведите аккаунт и начните сдавать жильё.
       </p>
 
       <form
-        className="mt-8 space-y-4"
+        className="mt-10 space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
           register.mutate();
         }}
       >
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Название</span>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="organization"
-            placeholder="Гостевой дом «Маяк»"
-            required
-            minLength={2}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Email</span>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            placeholder="name@example.com"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Пароль</span>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-            minLength={6}
-          />
-        </label>
-        <p className="text-xs text-text-tertiary">Минимум 6 символов.</p>
+        <Input
+          label="Название"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="organization"
+          placeholder="Гостевой дом «Маяк»"
+          required
+          minLength={2}
+        />
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          placeholder="name@example.com"
+          required
+        />
+        <Input
+          label="Пароль"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+          minLength={6}
+          hint="Минимум 6 символов."
+        />
 
         {error ? (
           <p role="alert" className="text-sm text-feedback-error-text">

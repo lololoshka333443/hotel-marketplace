@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 
 import { bookings } from "@/api/client";
 import { humanError } from "@/utils/errors";
@@ -38,7 +38,7 @@ export function CheckoutPage() {
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-12 text-text-secondary">
+      <div className="mx-auto max-w-2xl px-4 py-24 text-text-secondary sm:px-6">
         <p role="status">Загружаем бронь…</p>
       </div>
     );
@@ -46,12 +46,14 @@ export function CheckoutPage() {
 
   if (isError || !booking) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-2xl font-bold">Бронь не найдена</h1>
-        <p className="mt-2 text-text-secondary">
+      <div className="mx-auto max-w-2xl px-4 py-24 sm:px-6">
+        <h1 className="font-serif text-4xl font-normal leading-display tracking-tight">
+          Бронь не найдена
+        </h1>
+        <p className="mt-4 text-text-secondary">
           Возможно, она истекла или была отменена.
         </p>
-        <Link to="/search" className="mt-6 inline-block">
+        <Link to="/search" className="mt-8 inline-block">
           <Button variant="secondary">Найти жильё заново</Button>
         </Link>
       </div>
@@ -59,16 +61,21 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-bold tracking-tight">Оплата брони</h1>
-      <p className="mt-1 font-mono text-sm text-text-secondary">{booking.code}</p>
+    <div className="mx-auto max-w-2xl px-4 py-24 sm:px-6">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Оплата
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Оплата брони
+      </h1>
+      <p className="mt-2 font-mono text-sm text-text-tertiary">{booking.code}</p>
 
       {isConfirmed ? <ConfirmedState /> : null}
       {expired ? <ExpiredState code={booking.code} /> : null}
 
-      <section className="mt-6 rounded-lg border border-border-default bg-surface-card p-6">
-        <h2 className="text-lg font-semibold">Ваша бронь</h2>
-        <dl className="mt-4 space-y-2 text-sm">
+      <section className="mt-10 rounded-xl border border-border-default bg-surface-card p-8">
+        <h2 className="font-serif text-2xl font-normal">Ваша бронь</h2>
+        <dl className="mt-6 space-y-3 text-sm">
           <Row label="Заезд">{booking.checkin_date}</Row>
           <Row label="Выезд">{booking.checkout_date}</Row>
           <Row label="Сумма">
@@ -77,11 +84,11 @@ export function CheckoutPage() {
         </dl>
 
         {booking.lines.length > 0 ? (
-          <div className="mt-6 border-t border-border-default pt-4">
-            <h3 className="text-sm font-medium text-text-secondary">
+          <div className="mt-6 border-t border-border-default pt-5">
+            <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
               Посуточно
-            </h3>
-            <ul className="mt-2 space-y-1 text-sm">
+            </p>
+            <ul className="mt-4 space-y-2 text-sm">
               {booking.lines.map((line) => (
                 <li
                   key={line.date}
@@ -96,7 +103,7 @@ export function CheckoutPage() {
         ) : null}
 
         {isHold && !expiredOrPaid ? (
-          <div className="mt-6 flex items-center gap-2 rounded-button bg-feedback-info-bg px-4 py-3 text-sm text-feedback-info-text">
+          <div className="mt-6 flex items-center gap-3 border border-border-default bg-feedback-info-bg px-4 py-3 text-sm text-feedback-info-text">
             <Clock className="size-4 shrink-0" aria-hidden="true" />
             <span>
               Цена зафиксирована ещё{" "}
@@ -106,7 +113,7 @@ export function CheckoutPage() {
           </div>
         ) : null}
 
-        <div className="mt-6">
+        <div className="mt-8">
           <Button
             onClick={() => pay.mutate()}
             disabled={!isHold || expired || pay.isPending}
@@ -119,16 +126,16 @@ export function CheckoutPage() {
           {pay.isError ? (
             <p
               role="alert"
-              className="mt-3 flex items-center gap-2 text-sm text-feedback-error-text"
+              className="mt-4 flex items-center gap-2 text-sm text-feedback-error-text"
             >
               <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
               {humanError(pay.error, "Не удалось оплатить, деньги не списаны. Попробуйте ещё раз.")}
             </p>
           ) : null}
-          <p className="mt-3 text-center text-xs text-text-secondary">
+          <p className="mt-4 text-center text-xs leading-relaxed text-text-tertiary">
             100% предоплата. Отмена бесплатна до 24:00 дня заезда.
           </p>
-          <p className="mt-2 text-center text-xs text-text-secondary">
+          <p className="mt-2 text-center text-xs text-text-tertiary">
             Тестовая оплата, деньги не списываются.
           </p>
         </div>
@@ -139,7 +146,7 @@ export function CheckoutPage() {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex justify-between gap-4 border-b border-border-default pb-3">
       <dt className="text-text-secondary">{label}</dt>
       <dd className="text-text-primary">{children}</dd>
     </div>
@@ -148,33 +155,27 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function ConfirmedState() {
   return (
-    <div className="mt-6 flex items-start gap-3 rounded-lg border border-border-default bg-feedback-success-bg p-4 text-feedback-success-text">
-      <CheckCircle2 className="size-5 shrink-0" aria-hidden="true" />
-      <div>
-        <p className="font-medium">Бронь подтверждена</p>
-        <p className="mt-1 text-sm">
-          Мгновенное подтверждение. Данные отправлены на почту.
-        </p>
-      </div>
+    <div className="mt-8 border border-border-default bg-feedback-success-bg p-5 text-feedback-success-text">
+      <p className="font-medium">Бронь подтверждена</p>
+      <p className="mt-2 text-sm">
+        Мгновенное подтверждение. Данные отправлены на почту.
+      </p>
     </div>
   );
 }
 
 function ExpiredState({ code }: { code: string }) {
   return (
-    <div className="mt-6 flex items-start gap-3 rounded-lg border border-border-default bg-feedback-error-bg p-4 text-feedback-error-text">
-      <AlertCircle className="size-5 shrink-0" aria-hidden="true" />
-      <div>
-        <p className="font-medium">Время оплаты истекло</p>
-        <p className="mt-1 text-sm">
-          Бронь {code} аннулирована. Даты могли быть заняты, выберите их заново.
-        </p>
-        <Link to="/search" className="mt-3 inline-block">
-          <Button variant="secondary" size="sm">
-            Выбрать даты заново
-          </Button>
-        </Link>
-      </div>
+    <div className="mt-8 border border-border-default bg-feedback-error-bg p-5 text-feedback-error-text">
+      <p className="font-medium">Время оплаты истекло</p>
+      <p className="mt-2 text-sm">
+        Бронь {code} аннулирована. Даты могли быть заняты, выберите их заново.
+      </p>
+      <Link to="/search" className="mt-4 inline-block">
+        <Button variant="secondary" size="sm">
+          Выбрать даты заново
+        </Button>
+      </Link>
     </div>
   );
 }

@@ -28,10 +28,12 @@ interface PageTitleProps {
 
 export function PageTitle({ children, subtitle }: PageTitleProps) {
   return (
-    <div className="mb-6">
-      <h1 className="text-3xl font-bold tracking-tight">{children}</h1>
+    <div className="mb-10">
+      <h1 className="font-serif text-4xl font-normal leading-display tracking-tight">
+        {children}
+      </h1>
       {subtitle ? (
-        <p className="mt-2 text-text-secondary">{subtitle}</p>
+        <p className="mt-4 text-lg leading-normal text-text-secondary">{subtitle}</p>
       ) : null}
     </div>
   );

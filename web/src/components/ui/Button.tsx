@@ -7,23 +7,30 @@ import { cn } from "@/utils/cn";
 const buttonVariants = cva(
   [
     "inline-flex items-center justify-center gap-2 font-medium",
-    "rounded-button transition-colors duration-150",
+    "rounded-button transition-colors duration-micro",
     "focus-visible:outline-none focus-visible:shadow-focus-ring",
-    "disabled:pointer-events-none disabled:opacity-disabled",
+    // Disabled is a wash fill with muted type — a quiet, paper-y disabled, not
+    // a greyed-out SaaS button.
+    "disabled:pointer-events-none disabled:bg-surface-disabled disabled:text-text-disabled",
   ],
   {
     variants: {
       variant: {
-        primary: "bg-action-primary text-text-on-action hover:bg-action-primary-hover active:bg-action-primary-active",
+        primary:
+          "bg-action-primary text-text-on-action hover:bg-action-primary-hover active:bg-action-primary-active",
+        // Outline: 1px muted border (3:1 — a control boundary), fill washes on hover.
         secondary:
-          "bg-transparent text-text-primary shadow-[inset_0_0_0_1px_var(--color-border-strong)] hover:bg-interactive-hover",
+          "bg-transparent text-text-primary border border-border-strong hover:bg-interactive-hover",
         destructive:
           "bg-action-destructive text-text-on-action hover:bg-action-destructive-hover",
+        // Text-only: the underline sits 3px off and arrives on hover.
+        tertiary:
+          "bg-transparent text-text-primary underline-offset-[3px] hover:underline",
         ghost: "bg-transparent text-text-primary hover:bg-interactive-hover",
       },
       size: {
-        sm: "h-size-control-sm px-3 text-sm",
-        md: "h-size-control-md px-4 text-sm",
+        sm: "h-size-control-sm px-4 text-sm",
+        md: "h-size-control-md px-5 text-sm",
         lg: "h-size-control-lg px-6 text-base",
       },
     },

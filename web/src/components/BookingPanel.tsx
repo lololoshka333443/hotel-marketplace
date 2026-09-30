@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays } from "lucide-react";
 
 import { bookings, availability } from "@/api/client";
 import { humanError } from "@/utils/errors";
@@ -52,31 +51,27 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
   }
 
   return (
-    <section className="rounded-lg border border-border-default bg-surface-card p-6">
-      <h2 className="text-lg font-semibold">Бронирование</h2>
+    <section className="mt-6 rounded-xl border border-border-default bg-surface-card p-6">
+      <h2 className="font-serif text-2xl font-normal">Бронирование</h2>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <label className="text-sm">
-          <span className="mb-1 block text-text-secondary">Заезд</span>
-          <Input
-            type="date"
-            value={checkin}
-            onChange={(e) => setCheckin(e.target.value)}
-            min={today()}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-text-secondary">Выезд</span>
-          <Input
-            type="date"
-            value={checkout}
-            onChange={(e) => setCheckout(e.target.value)}
-            min={checkin || today()}
-          />
-        </label>
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <Input
+          label="Заезд"
+          type="date"
+          value={checkin}
+          onChange={(e) => setCheckin(e.target.value)}
+          min={today()}
+        />
+        <Input
+          label="Выезд"
+          type="date"
+          value={checkout}
+          onChange={(e) => setCheckout(e.target.value)}
+          min={checkin || today()}
+        />
       </div>
 
-      <div className="mt-4">
+      <div className="mt-5">
         <Button
           variant="secondary"
           onClick={onCheck}
@@ -84,7 +79,6 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
           disabled={!checkin || !checkout}
           className="w-full"
         >
-          <CalendarDays className="size-4" aria-hidden="true" />
           Проверить даты
         </Button>
         {price.isError ? (
@@ -98,9 +92,9 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
       </div>
 
       {days ? (
-        <div className="mt-4 border-t border-border-default pt-4 text-sm">
+        <div className="mt-6 border-t border-border-default pt-5 text-sm">
           {blocked ? (
-            <p className="flex items-center gap-2 text-feedback-error-text">
+            <p className="text-feedback-error-text">
               На выбранные даты мест нет. Попробуйте другие.
             </p>
           ) : (
@@ -129,43 +123,39 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
         </div>
       ) : null}
 
-      <div className="mt-4 space-y-3 border-t border-border-default pt-4">
-        <h3 className="text-sm font-medium text-text-secondary">Контакты гостя</h3>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Имя</span>
-          <Input
-            value={guest.name}
-            onChange={(e) => setGuest({ ...guest, name: e.target.value })}
-            autoComplete="name"
-            placeholder="Как к вам обращаться"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Email</span>
-          <Input
-            type="email"
-            value={guest.email}
-            onChange={(e) => setGuest({ ...guest, email: e.target.value })}
-            autoComplete="email"
-            placeholder="name@example.com"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Телефон</span>
-          <Input
-            type="tel"
-            value={guest.phone}
-            onChange={(e) => setGuest({ ...guest, phone: e.target.value })}
-            autoComplete="tel"
-            placeholder="+7 999 000-00-00"
-            required
-          />
-        </label>
+      <div className="mt-6 space-y-4 border-t border-border-default pt-5">
+        <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+          Контакты гостя
+        </p>
+        <Input
+          label="Имя"
+          value={guest.name}
+          onChange={(e) => setGuest({ ...guest, name: e.target.value })}
+          autoComplete="name"
+          placeholder="Как к вам обращаться"
+          required
+        />
+        <Input
+          label="Email"
+          type="email"
+          value={guest.email}
+          onChange={(e) => setGuest({ ...guest, email: e.target.value })}
+          autoComplete="email"
+          placeholder="name@example.com"
+          required
+        />
+        <Input
+          label="Телефон"
+          type="tel"
+          value={guest.phone}
+          onChange={(e) => setGuest({ ...guest, phone: e.target.value })}
+          autoComplete="tel"
+          placeholder="+7 999 000-00-00"
+          required
+        />
       </div>
 
-      <div className="mt-5">
+      <div className="mt-6">
         <Button
           onClick={() => hold.mutate()}
           disabled={!canBook || hold.isPending}
@@ -183,7 +173,7 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
             {humanError(hold.error, "Не удалось забронировать. Попробуйте ещё раз.")}
           </p>
         ) : null}
-        <p className="mt-3 text-center text-xs text-text-secondary">
+        <p className="mt-4 text-center text-xs leading-relaxed text-text-tertiary">
           Мгновенное подтверждение · 100% предоплата · бесплатная отмена за
           сутки до заезда
         </p>

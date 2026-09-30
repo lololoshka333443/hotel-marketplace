@@ -50,6 +50,7 @@
   --color-scrim: var(--t-scrim);
 
   --font-sans: var(--t-font-sans);
+  --font-serif: var(--t-font-serif);
   --font-mono: var(--t-font-mono);
 
   --text-xs: var(--t-text-xs);
@@ -60,10 +61,12 @@
   --text-2xl: var(--t-text-2xl);
   --text-3xl: var(--t-text-3xl);
   --text-4xl: var(--t-text-4xl);
-  --text-5xl: var(--t-text-5xl);
-  --text-6xl: var(--t-text-6xl);
+  --text-display: var(--t-text-display);
   --leading-tight: var(--t-leading-tight);
   --leading-normal: var(--t-leading-normal);
+  --leading-display: var(--t-leading-display);
+  --tracking-tight: var(--t-tracking-tight);
+  --tracking-eyebrow: var(--t-tracking-eyebrow);
 
   --radius-sm: var(--t-radius-sm);
   --radius-button: var(--t-radius-button);
@@ -74,6 +77,7 @@
   --size-control-sm: var(--t-size-control-sm);
   --size-control-md: var(--t-size-control-md);
   --size-control-lg: var(--t-size-control-lg);
+  --size-control-field: var(--t-size-control-field);
 
   /* Tailwind namespaces these as boxShadow / opacity / zIndex, not bare names */
   --shadow-focus-ring: var(--t-shadow-focus-ring);
@@ -81,6 +85,23 @@
   --opacity-disabled: var(--t-opacity-disabled);
   --z-modal: var(--t-z-modal);
   --transition-micro: var(--t-transition-micro);
+  --transition-duration-micro: var(--t-duration-micro);
+}
+
+/* Height utilities for the control scale. Tailwind v4's --size-* namespace
+ * only generates size-* (both axes), not h-* — the control heights are exposed
+ * here, named for the tokens they read. */
+@utility h-size-control-sm {
+  height: var(--t-size-control-sm);
+}
+@utility h-size-control-md {
+  height: var(--t-size-control-md);
+}
+@utility h-size-control-lg {
+  height: var(--t-size-control-lg);
+}
+@utility h-size-control-field {
+  height: var(--t-size-control-field);
 }
 
 /* reduced motion is honored at the token layer (theme.css) and here too. */

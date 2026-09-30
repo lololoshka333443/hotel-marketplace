@@ -85,13 +85,13 @@ export function Modal({
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "w-full max-w-md rounded-lg bg-surface-card p-6 shadow-overlay",
+          "w-full max-w-md rounded-xl border border-border-default bg-surface-card p-6",
           "text-text-primary",
           className,
         )}
       >
         {title ? (
-          <h2 id={titleId} className="text-lg font-semibold">
+          <h2 id={titleId} className="font-serif text-2xl font-normal leading-tight">
             {title}
           </h2>
         ) : null}

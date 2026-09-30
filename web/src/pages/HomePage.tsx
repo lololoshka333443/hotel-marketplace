@@ -14,41 +14,48 @@ export function HomePage() {
 
   return (
     <div>
-      {/* hero — the photo background went away with web/public/rooms; the
-          redesign replaces this section. For now a brand-tinted gradient. */}
-      <section className="relative isolate overflow-hidden bg-gradient-to-b from-action-primary/20 to-surface-page">
-        {/* ds-allow-hardcode:start - hero min height: fixed editorial measure,
+      {/* hero — paper, not a SaaS gradient. An eyebrow, one serif headline, a
+       * single primary button. Photography is gone (photos come through the
+       * partner API now), so the type carries the whole section. */}
+      <section className="border-b border-border-default">
+        {/* ds-allow-hardcode:start - hero measure: fixed editorial measure,
          * not part of the spacing scale. */}
-        <div className="mx-auto flex min-h-[420px] max-w-7xl items-end px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div className="mx-auto max-w-[1120px] px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
           {/* ds-allow-hardcode:end */}
-          <div className="max-w-2xl rounded-lg bg-scrim p-6 sm:p-8">
-            <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
-              Жильё в Крыму у моря
-            </h1>
-            <p className="mt-4 text-lg text-white/90">
-              Отели, квартиры и апартаменты. Мгновенное подтверждение, 100%
-              предоплата, бесплатная отмена за сутки до заезда.
-            </p>
-            <Link
-              to="/search"
-              className="mt-8 inline-flex h-12 items-center justify-center rounded-button bg-action-primary px-6 text-base font-semibold text-text-on-action transition-colors duration-150 hover:bg-action-primary-hover"
-            >
-              Найти жильё
-            </Link>
-          </div>
+          <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+            Коктебель · Крым
+          </p>
+          <h1 className="mt-6 max-w-3xl font-serif text-display font-normal leading-display tracking-tight text-text-primary">
+            Жильё у моря, в&nbsp;котором хочется остаться
+          </h1>
+          <p className="mt-6 max-w-xl text-lg leading-normal text-text-secondary">
+            Отели, квартиры и апартаменты. Мгновенное подтверждение, 100%
+            предоплата, бесплатная отмена за сутки до заезда.
+          </p>
+          <Link
+            to="/search"
+            className="mt-10 inline-flex h-size-control-lg items-center justify-center rounded-button bg-action-primary px-6 text-base font-medium text-text-on-action transition-colors duration-micro hover:bg-action-primary-hover active:bg-action-primary-active focus-visible:shadow-focus-ring"
+          >
+            Найти жильё
+          </Link>
         </div>
       </section>
 
-      {/* catalog - data from the API, never hardcoded */}
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <h2 className="mb-6 text-2xl font-bold tracking-tight">Объекты</h2>
+      {/* catalog — data from the API, never hardcoded */}
+      <section className="mx-auto max-w-[1120px] px-4 py-24 sm:px-6 lg:px-8">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-serif text-3xl font-normal tracking-tight">Объекты</h2>
+          <p className="text-sm text-text-tertiary">
+            {properties?.length ?? 0} в каталоге
+          </p>
+        </div>
 
         {isPending ? (
-          <p role="status" className="text-text-secondary">
+          <p role="status" className="mt-12 text-text-secondary">
             Загружаем объекты…
           </p>
         ) : isError ? (
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="mt-12 flex flex-wrap items-center gap-4">
             <p role="alert" className="text-feedback-error-text">
               Не удалось загрузить объекты. Обновите страницу.
             </p>
@@ -61,16 +68,16 @@ export function HomePage() {
             </Button>
           </div>
         ) : properties.length === 0 ? (
-          <p className="text-text-secondary">
+          <p className="mt-12 text-text-secondary">
             Пока нет опубликованных объектов. Каталог появится, как партнёры
             добавят жильё.
           </p>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="mt-12 grid gap-8 sm:grid-cols-2">
             {properties.map((property) => (
               <article
                 key={property.id}
-                className="overflow-hidden rounded-lg border border-border-default bg-surface-card"
+                className="flex flex-col overflow-hidden rounded-xl border border-border-default bg-surface-card transition-colors duration-micro hover:bg-interactive-hover"
               >
                 {property.photos?.[0] ? (
                   <img
@@ -87,14 +94,17 @@ export function HomePage() {
                     Фото скоро появятся
                   </div>
                 )}
-                <div className="p-5">
-                  <h3 className="text-lg font-semibold">{property.name}</h3>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {property.city || "Крым"}
+                <div className="flex flex-1 flex-col p-6">
+                  <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+                    {property.property_type}
                   </p>
+                  <h3 className="mt-2 font-serif text-xl font-normal leading-tight text-text-primary">
+                    {property.name}
+                  </h3>
+                  <p className="mt-2 text-text-secondary">{property.city || "Крым"}</p>
                   <Link
                     to={`/property/${property.id}`}
-                    className="mt-4 inline-flex h-10 items-center justify-center rounded-button border border-border-strong text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-interactive-hover"
+                    className="mt-6 inline-flex w-fit items-center text-sm font-medium text-text-primary underline-offset-[3px] transition-colors duration-micro hover:underline"
                   >
                     Подробнее
                   </Link>

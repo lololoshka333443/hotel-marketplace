@@ -5,25 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Inter + JetBrains Mono: latin + cyrillic; variable Inter avoids faux-bold -->
+    <!-- Paper and ink: Inter for UI, Spectral for display (editorial serif with
+         real Cyrillic — Newsreader and Fraunces from the mood board have none),
+         JetBrains Mono for technical identifiers only (codes, keys, dates). -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap"
     />
     <title>Жильё в Крыму — бронирование онлайн</title>
-    <script>
-      // Theme before paint, to avoid a light->dark flash. The user's explicit
-      // choice wins; otherwise the OS preference decides. Inline so it runs
-      // synchronously, before the React bundle.
-      (function () {
-        try {
-          var stored = localStorage.getItem("theme");
-          var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-          var theme = stored === "light" || stored === "dark" ? stored : dark ? "dark" : "light";
-          document.documentElement.setAttribute("data-theme", theme);
-        } catch (e) {}
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>
