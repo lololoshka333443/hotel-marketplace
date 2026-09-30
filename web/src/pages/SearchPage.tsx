@@ -88,7 +88,7 @@ export function SearchPage() {
             >
               {property.photos?.[0] ? (
                 <img
-                  src={property.photos[0]}
+                  src={property.photos[0].thumb}
                   alt={property.name}
                   className="aspect-4/3 w-full object-cover"
                   loading="lazy"

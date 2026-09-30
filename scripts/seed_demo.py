@@ -28,6 +28,44 @@ PARTNER_PASSWORD = "demo-password"
 ADMIN_EMAIL = "admin@example.com"
 ADMIN_PASSWORD = "admin-password"
 
+
+def _demo_cover(label: str) -> bytes:
+    """A warm on-palette gradient stand-in, so the demo catalog has a cover.
+
+    Real photos come from partners; this is only what the demo ships with.
+    """
+    import hashlib
+    import io
+
+    from PIL import Image, ImageDraw, ImageFilter
+
+    width, height = 1600, 1000
+    # Deterministic per property: the sun sits differently for each name.
+    digest = hashlib.sha256(label.encode()).digest()
+    shift = digest[0] / 255
+
+    # Two stops from the paper-and-ink palette: page parchment to muted terracotta.
+    top = (244, 240, 232)
+    bottom = (190, 158, 130)
+
+    ramp = Image.new("RGB", (1, 256))
+    ramp.putdata([tuple(round(top[c] + (bottom[c] - top[c]) * i / 255) for c in range(3)) for i in range(256)])
+    base = ramp.resize((width, height))
+
+    # A soft sun: the only shape in the image, blurred to nothing hard.
+    sun = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(sun)
+    cx = round(width * (0.25 + 0.5 * shift))
+    draw.ellipse((cx - 260, 180, cx + 260, 700), fill=90)
+    sun = sun.filter(ImageFilter.GaussianBlur(120))
+
+    overlay = Image.new("RGB", (width, height), (236, 214, 188))
+    base.paste(overlay, mask=sun)
+
+    buf = io.BytesIO()
+    base.save(buf, format="JPEG", quality=88)
+    return buf.getvalue()
+
 # Room photos used to live in web/public/rooms and be wired in here. Photos
 # now belong to the partner API (upload of a photo against a property), and
 # until that lands the demo catalogue simply shows no photos.
@@ -83,16 +121,17 @@ async def main() -> int:
             for property_def in PROPERTIES:
                 address = json.dumps({"settlement": "Коктебель", "region": "Крым"})
 
+                # Re-seed keeps a partner's uploaded photos (the catalog cover
+                # comes through the API now), only the status is refreshed.
                 property_id = await conn.fetchval(
                     """
                     UPDATE property
-                       SET photos = $3, status = 'published'
+                       SET status = 'published'
                      WHERE partner_id = $1 AND name = $2
                     RETURNING id::text
                     """,
                     partner_id,
                     property_def["name"],
-                    "[]",
                 )
                 if property_id is None:
                     property_id = await conn.fetchval(
@@ -108,6 +147,26 @@ async def main() -> int:
                         address,
                         "[]",
                     )
+
+                # A demo cover so the catalog is not all placeholders: generated
+                # here, stored through the same path a partner's upload takes.
+                has_photos = await conn.fetchval(
+                    "SELECT jsonb_array_length(photos) FROM property WHERE id = $1",
+                    property_id,
+                )
+                if has_photos == 0:
+                    from app.modules.property import photos as photos_mod
+
+                    try:
+                        await photos_mod.add_photo(
+                            conn,
+                            property_id,
+                            partner_id,
+                            _demo_cover(property_def["name"]),
+                        )
+                        log.info("demo-photo-seeded", property=property_def["name"])
+                    except photos_mod.PhotoError as exc:
+                        log.warning("demo-photo-skipped", detail=exc.detail)
 
                 for room_no, room_name, capacity, total_units, base_price in property_def["rooms"]:
                     existing = await conn.fetchval(

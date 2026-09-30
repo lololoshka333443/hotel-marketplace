@@ -81,7 +81,7 @@ export function HomePage() {
               >
                 {property.photos?.[0] ? (
                   <img
-                    src={property.photos[0]}
+                    src={property.photos[0].thumb}
                     alt={property.name}
                     className="h-52 w-full object-cover"
                     loading="lazy"

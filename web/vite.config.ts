@@ -19,6 +19,7 @@ export default defineConfig({
         target: "http://localhost:8000",
         changeOrigin: true,
       },
+      "/media": "http://localhost:8000",
       "/healthz": "http://localhost:8000",
       "/readyz": "http://localhost:8000",
     },

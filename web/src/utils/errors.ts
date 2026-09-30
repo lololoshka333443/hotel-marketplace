@@ -20,6 +20,20 @@ const MESSAGES: ReadonlyArray<[RegExp, string]> = [
   [/changed state during payment/i, "Состояние брони изменилось во время оплаты. Попробуйте ещё раз."],
   // shared
   [/booking not found/i, "Бронирование не найдено. Обновите страницу."],
+  // photos
+  [/photo too large/i, "Файл слишком большой. Лимит — 10 МБ, сожмите фото и попробуйте снова."],
+  [
+    /unsupported file type/i,
+    "Этот формат не поддерживается. Подходят JPEG, PNG и WebP.",
+  ],
+  [
+    /could not decode the image/i,
+    "Файл не читается — кажется, он повреждён. Возьмите другое фото.",
+  ],
+  [
+    /at most \d+ photos/i,
+    "Слишком много фото у одного объекта. Удалите лишнее, чтобы добавить новое.",
+  ],
 ];
 
 export function humanError(exc: unknown, fallback: string): string {

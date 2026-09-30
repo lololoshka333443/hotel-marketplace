@@ -18,6 +18,10 @@ dependencies = [
     "structlog>=24.4",
     "argon2-cffi>=25.1.0",
     "cryptography>=50.0.1",
+    # Photo uploads: decode + resize to WebP (property photos in the catalog).
+    "pillow>=11.0",
+    # Multipart uploads (property photos via UploadFile).
+    "python-multipart>=0.0.20",
 ]
 
 [project.optional-dependencies]

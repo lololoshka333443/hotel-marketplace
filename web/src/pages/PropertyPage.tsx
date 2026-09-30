@@ -66,7 +66,7 @@ export function PropertyPage() {
         <div>
           {photo ? (
             <img
-              src={photo}
+              src={photo.full}
               alt={property.name}
               className="h-72 w-full rounded-xl object-cover sm:h-96"
             />

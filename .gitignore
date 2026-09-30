@@ -33,6 +33,9 @@ web/dist/
 # Node build artifacts of the frontend
 web/.vite/
 
+# Partner photo uploads (come through the API, never copied in)
+media/
+
 # Scratch Tailwind playground (not part of the app)
 web/.twtest/
 

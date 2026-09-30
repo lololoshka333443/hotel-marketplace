@@ -92,3 +92,12 @@ class PropertyPublicOut(BaseModel):
     lat: float | None
     lng: float | None
     address: dict
+
+
+class PhotoOut(BaseModel):
+    """One property photo. `full` is the sized-down original, `thumb` the card
+    view. The first photo in the property's list is the catalog cover."""
+
+    id: str
+    full: str
+    thumb: str

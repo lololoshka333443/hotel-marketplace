@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
     from app.modules.inventory.routes import router as inventory_router
     from app.modules.outbox.routes import router as outbox_router
     from app.modules.payment.routes import router as payment_router
+    from app.modules.property.photo_routes import router as photo_router
     from app.modules.property.routes import router as property_router
     from app.modules.property.unit_type_routes import router as unit_type_router
     from app.modules.rate.routes import router as rate_router
@@ -109,6 +110,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(property_router)
+    app.include_router(photo_router)
     app.include_router(unit_type_router)
     app.include_router(inventory_router)
     app.include_router(booking_router)
@@ -135,6 +137,17 @@ def create_app() -> FastAPI:
             StaticFiles(directory=static_dir / "assets"),
             name="assets",
         )
+
+    # Partner photo uploads (written by app/modules/property/photos.py). Served
+    # from a directory outside web/ — photos come through the API, never copied
+    # into the frontend's public/. Created at startup so the mount is never
+    # pointing at a missing directory.
+    settings.media_dir.mkdir(parents=True, exist_ok=True)
+    app.mount(
+        settings.media_url_prefix,
+        StaticFiles(directory=settings.media_dir),
+        name="media",
+    )
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict:

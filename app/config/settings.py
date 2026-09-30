@@ -115,6 +115,21 @@ class Settings(BaseSettings):
     # ----- Payment -----
     payment_mode: str = Field(default="stub")
 
+    # ----- Property photos -----
+    # Partners upload photos through the cabinet; the catalog renders them.
+    # Files live outside web/ (never copied into public/) and are served from
+    # this prefix by a static mount. The URL is built from the prefix, so a CDN
+    # swap only changes these two.
+    media_dir: Path = Field(default=PROJECT_ROOT / "media")
+    media_url_prefix: str = Field(default="/media")
+    # One upload is capped per file, not per request: a resize happens in a
+    # threadpool, so a huge raw file still costs CPU before it is rejected.
+    photo_max_bytes: int = Field(default=10 * 1024 * 1024)
+    photo_max_per_property: int = Field(default=12)
+    # Long edge of the stored full size; the card/thumb pair is generated next.
+    photo_max_dimension: int = Field(default=1920)
+    photo_thumb_width: int = Field(default=800)
+
     # ----- Telegram -----
     telegram_bot_token: str = Field(default="")
 

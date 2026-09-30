@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
+import { PropertyPhotos } from "@/components/PropertyPhotos";
 import type { PropertyOut } from "@/api/types";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -168,6 +169,10 @@ function PropertyList({ properties }: { properties: PropertyOut[] }) {
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
+              <PropertyPhotos
+                propertyId={property.id}
+                propertyName={property.name}
+              />
               <Link to="/partner/calendar">
                 <Button variant="secondary">Шахматка</Button>
               </Link>

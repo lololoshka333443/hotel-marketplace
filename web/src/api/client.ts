@@ -28,6 +28,7 @@ import type {
   PropertyOut,
   PropertyPublic,
   PropertyType,
+  Photo,
   TokenResponse,
   UnitTypeOut,
 } from "./types";
@@ -79,12 +80,22 @@ async function request<T>(
     ...options.headers,
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  // FormData takes its own boundary in Content-Type — never stringify it.
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body !== undefined && !isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const response = await fetch(`${BASE}${path}`, {
     method: options.method ?? "GET",
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body:
+      options.body === undefined
+        ? undefined
+        : isFormData
+          ? (options.body as FormData)
+          : JSON.stringify(options.body),
     signal: options.signal,
   });
 
@@ -223,6 +234,26 @@ export const partner = {
     city?: string;
   }) =>
     request<PropertyOut>("/partner/properties", { method: "POST", body }),
+  photos: {
+    list: (propertyId: string, signal?: AbortSignal) =>
+      request<Photo[]>(
+        `/partner/properties/${propertyId}/photos`,
+        { signal },
+      ),
+    upload: (propertyId: string, file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      return request<Photo[]>(
+        `/partner/properties/${propertyId}/photos`,
+        { method: "POST", body },
+      );
+    },
+    remove: (propertyId: string, photoId: string) =>
+      request<Photo[]>(
+        `/partner/properties/${propertyId}/photos/${photoId}`,
+        { method: "DELETE" },
+      ),
+  },
   listUnitTypes: (propertyId: string) =>
     request<UnitTypeOut[]>(`/partner/unit-types/property/${propertyId}`),
   calendar: (propertyId: string, dateFrom: string, dateTo: string) =>

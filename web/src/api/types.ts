@@ -54,8 +54,16 @@ export interface PropertyPublic {
   lat: number | null;
   lng: number | null;
   address: Address;
-  /** Photo URLs - the largest first. Empty until photos land on the backend. */
-  photos?: string[];
+  /** Property photos — the first is the catalog cover. Empty until the partner
+   * uploads some (`POST /v1/partner/properties/{id}/photos`). */
+  photos?: Photo[];
+}
+
+/** One property photo: `full` is the sized-down original, `thumb` the card view. */
+export interface Photo {
+  id: string;
+  full: string;
+  thumb: string;
 }
 
 export interface PropertyOut extends PropertyPublic {
