@@ -1,7 +1,8 @@
-# Handover prompt: отель-маркетплейс, конец Phase 3
+# Handover prompt: отель-маркетплейс, редизайн paper-and-ink
 
 Вставь этот текст в начало нового чата, чтобы передать контекст.
-Подробная история по срезам — в `docs/handover/HANDOVER-ical-export.md`.
+Подробная история по срезам — в `docs/handover/HANDOVER.md` (разделы «Что
+сделано в этом срезе») и `docs/handover/HANDOVER-ical-export.md`.
 
 ---
 
@@ -35,8 +36,35 @@ PostgreSQL — источник правды, внешние площадки �
 - **Шардирование outbox** — очередь нарезана на 16 логических шардов по свойству,
   4 воркера доставки владеют ими непересекающимися группами.
 - **Редизайн «paper and ink»** — фундамент и гостевой флоу переведены на
-  тёплый пергамент/графит + Spectral; тёмной темы больше нет.
-- **201 тест зелёный, 18 миграций, ruff/tsc/build чистые.**
+  тёплый пергамент/графит + Spectral; тёмной темы больше нет. **Партнёрка и
+  админка ещё на старых токенах — это следующий срез.**
+- **202 теста зелёных, 18 миграций, ruff/tsc/build чистые.**
+
+## Дизайн-система (менять только через генератор)
+
+- Палитра: page `#F4F0E8`, surface `#FBF9F5`, ink `#1C1916`, ink-soft
+  `#5C564E`, muted `#8A8175`, line `#E4DCD0`, wash `#EBE4D8`, danger
+  `#8C3A32`. Акцентного цвета нет; success/warning — тихие moss/ochre.
+  **Светлая тема только** — тёмная удалена вместе с `useTheme`.
+- `scripts/gen_palette.py` выбирает палитру и **верифицирует** её (coloraide,
+  WCAG 2.2: 4.5:1 текст, 3:1 UI). `scripts/emit_tokens.py` пишет
+  `web/src/styles/theme.css` и `tokens/colors.json` целиком — **править их
+  руками нельзя**. Запуск: `uv run python scripts/gen_palette.py && uv run
+  python scripts/emit_tokens.py`.
+- Шрифты: **Spectral** — display-serif (Newsreader и Fraunces из мудборда
+  **без кириллицы** — поэтому Spectral, он от той же Production Type),
+  Inter — UI, JetBrains Mono — только технические идентификаторы (коды,
+  ключи, даты). Body 17px/1.6, display `clamp(2.5rem, 5.5vw, 4.75rem)`/1.08,
+  eyebrow 12px uppercase tracking 0.08em.
+- Радиусы: 999 (пилюли), 20 (карточки), 14 (поля). Других нет. Motion
+  180ms ease-out, только цвет/подчёркивание. Фокус — графитовое кольцо.
+- Хвостовые грабли Tailwind v4: `--size-*` генерирует только `size-*`, **не**
+  `h-*` (высоты контролов живут в `@utility` в `index.css`); `duration-*`
+  берётся из `--transition-duration-*`.
+- Два намеренных отклонения от мудборда: hairline-границы контролов давали
+  1.2:1 (провал WCAG 1.4.11) → контролы в muted (3.65:1); eyebrow в muted —
+  3.4:1, не текст → eyebrow в ink-soft, tertiary выводится до 4.69:1.
+- Референс: `docs/DESIGN-sonder.mdc` (мудборд, не копипаст).
 
 ## Инварианты, которые нельзя ломать
 
