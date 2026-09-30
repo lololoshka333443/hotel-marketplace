@@ -17,8 +17,13 @@ export function ComponentsPage() {
   const [text, setText] = useState("");
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold tracking-tight">Компоненты - состояния</h1>
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Дизайн-система
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Компоненты — состояния
+      </h1>
 
       <Section title="Button">
         <Row label="default">
@@ -101,7 +106,7 @@ export function ComponentsPage() {
       <Section title="Icons (lucide, currentColor)">
         <Row label="inline SVG">
           <Star className="size-5 text-text-primary" aria-hidden="true" />
-          <Info className="size-5 text-text-link" aria-hidden="true" />
+          <Info className="size-5 text-text-secondary" aria-hidden="true" />
           <CheckCircle2 className="size-5 text-feedback-success-text" aria-hidden="true" />
           <AlertCircle className="size-5 text-feedback-error-text" aria-hidden="true" />
         </Row>
@@ -137,8 +142,8 @@ export function ComponentsPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-10">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <div className="mt-4 space-y-4 rounded-lg border border-border-default bg-surface-card p-5">
+      <h2 className="font-serif text-2xl font-normal">{title}</h2>
+      <div className="mt-4 space-y-4 rounded-xl border border-border-default bg-surface-card p-5">
         {children}
       </div>
     </section>

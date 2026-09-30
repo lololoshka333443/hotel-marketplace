@@ -23,9 +23,14 @@ export function AdminReportsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold tracking-tight">Отчёт по комиссии</h1>
-      <p className="mt-2 text-text-secondary">
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Админка
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Отчёт по комиссии
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Комиссия снапшотится при подтверждении брони и не пересчитывается
         позже.
       </p>
@@ -37,23 +42,19 @@ export function AdminReportsPage() {
           setApplied({ from, to });
         }}
       >
-        <label className="text-sm">
-          <span className="mb-1 block text-text-secondary">Заезд от</span>
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-text-secondary">Заезд до</span>
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            min={from || undefined}
-          />
-        </label>
+        <Input
+          label="Заезд от"
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <Input
+          label="Заезд до"
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          min={from || undefined}
+        />
         <Button type="submit" variant="secondary" loading={isPending}>
           Применить фильтр
         </Button>
@@ -89,26 +90,19 @@ export function AdminReportsPage() {
         <>
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
             <Stat label="Бронирований" value={String(data.total.bookings)} />
-            <Stat
-              label="Оборот"
-              value={money(data.total.gross)}
-            />
-            <Stat
-              label="Комиссия"
-              value={money(data.total.commission)}
-              accent
-            />
+            <Stat label="Оборот" value={money(data.total.gross)} />
+            <Stat label="Комиссия" value={money(data.total.commission)} />
           </div>
 
           <section className="mt-10">
-            <h2 className="text-xl font-semibold">По партнёрам</h2>
+            <h2 className="font-serif text-2xl font-normal">По партнёрам</h2>
             {data.partners.length === 0 ? (
-              <p className="mt-4 rounded-lg border border-border-default bg-surface-card p-6 text-text-secondary">
+              <p className="mt-4 rounded-xl border border-border-default bg-surface-card p-6 text-text-secondary">
                 За выбранный период подтверждённых бронирований нет. Измените
                 диапазон или вернитесь позже.
               </p>
             ) : (
-              <div className="mt-4 overflow-x-auto rounded-lg border border-border-default">
+              <div className="mt-4 overflow-x-auto rounded-xl border border-border-default">
                 <table className="w-full border-collapse text-sm">
                   <caption className="sr-only">
                     Комиссия по партнёрам: почта, бронирования, оборот, комиссия
@@ -153,20 +147,16 @@ function money(v: number): string {
 function Stat({
   label,
   value,
-  accent,
 }: {
   label: string;
   value: string;
-  accent?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border-default bg-surface-card p-5">
+    <div className="rounded-xl border border-border-default bg-surface-card p-5">
       <p className="text-sm text-text-secondary">{label}</p>
-      <p
-        className={`mt-1 text-2xl font-bold ${
-          accent ? "text-text-link" : "text-text-primary"
-        }`}
-      >
+      {/* The brief has no accent color, so the headline figure is set apart by
+       * the serif face, not a hue. */}
+      <p className="mt-2 font-serif text-3xl font-normal tracking-tight tabular-nums text-text-primary">
         {value}
       </p>
     </div>

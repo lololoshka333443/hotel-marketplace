@@ -36,9 +36,14 @@ export function AdminModerationPage() {
   const list = data ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold tracking-tight">Модерация объектов</h1>
-      <p className="mt-2 text-text-secondary">
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Админка
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Модерация объектов
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Партнёры могут публиковать объекты сами; админ следит и блокирует
         нарушения.
       </p>
@@ -75,7 +80,7 @@ export function AdminModerationPage() {
           </Button>
         </div>
       ) : list.length === 0 ? (
-        <p className="mt-10 rounded-lg border border-border-default bg-surface-card p-6 text-text-secondary">
+        <p className="mt-10 rounded-xl border border-border-default bg-surface-card p-6 text-text-secondary">
           В этом разделе нет объектов. Выберите другой фильтр.
         </p>
       ) : (
@@ -83,11 +88,11 @@ export function AdminModerationPage() {
           {list.map((property) => (
             <li
               key={property.id}
-              className="flex flex-col gap-3 rounded-lg border border-border-default bg-surface-card p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-xl border border-border-default bg-surface-card p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold">{property.name}</h2>
+                  <h2 className="text-lg font-medium">{property.name}</h2>
                   <StatusBadge status={property.status} />
                 </div>
                 <p className="mt-1 text-sm text-text-secondary">

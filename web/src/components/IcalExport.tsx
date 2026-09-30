@@ -23,7 +23,7 @@ export function IcalExport({ propertyId }: { propertyId: string }) {
 
   return (
     <section className="mt-10">
-      <h2 className="text-xl font-semibold">iCal-экспорт</h2>
+      <h2 className="font-serif text-2xl font-normal">iCal-экспорт</h2>
       <p className="mt-2 max-w-2xl text-sm text-text-secondary">
         Внешний канал читает заблокированные даты по этой ссылке: брони, холды
         и закрытые даты видны как занятые. Свободные даты остаются доступными.
@@ -67,7 +67,7 @@ function IcalRow({ unitType }: { unitType: UnitTypeOut }) {
   }
 
   return (
-    <li className="flex flex-col gap-3 rounded-lg border border-border-default bg-surface-card p-4 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-3 rounded-xl border border-border-default bg-surface-card p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="font-medium">{unitType.name}</p>
         {feed ? (
@@ -75,7 +75,7 @@ function IcalRow({ unitType }: { unitType: UnitTypeOut }) {
             readOnly
             value={feed.url}
             aria-label={`Ссылка iCal для ${unitType.name}`}
-            className="mt-1 w-full truncate rounded-button border border-border-strong bg-surface-card px-3 py-1.5 font-mono text-xs text-text-secondary focus:border-border-focus focus:outline-none"
+            className="mt-1 w-full truncate rounded-lg border border-border-strong bg-surface-card px-3 py-1.5 font-mono text-xs text-text-secondary focus:border-border-focus focus:outline-none focus-visible:shadow-focus-ring"
           />
         ) : isPending ? (
           <p role="status" className="mt-1 text-xs text-text-secondary">

@@ -37,15 +37,17 @@ export function PartnerDashboardPage() {
   }
   if (isPending) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-12 text-text-secondary">
+      <div className="mx-auto max-w-[1120px] px-4 py-16 text-text-secondary sm:px-6 lg:px-8">
         <p role="status">Загружаем объекты…</p>
       </div>
     );
   }
   if (isError) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-12">
-        <h1 className="text-2xl font-bold">Не удалось загрузить объекты</h1>
+      <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+        <h1 className="font-serif text-4xl font-normal leading-display tracking-tight">
+          Не удалось загрузить объекты
+        </h1>
         <p className="mt-2 text-text-secondary">
           Обновите страницу. Если ошибка остаётся, мы уже о ней знаем.
         </p>
@@ -63,10 +65,15 @@ export function PartnerDashboardPage() {
   const list = (properties ?? []) as PropertyOut[];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Мои объекты</h1>
+          <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+            Кабинет партнёра
+          </p>
+          <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+            Мои объекты
+          </h1>
           <p className="mt-2 text-text-secondary">
             {list.length === 0
               ? "Здесь появятся ваши отели, квартиры и апартаменты"
@@ -89,11 +96,11 @@ export function PartnerDashboardPage() {
 /** First-run state: explain the value, one dominant action. No "No data". */
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="mt-8 rounded-lg border border-border-default bg-surface-card p-8 sm:p-12">
-      <div className="mx-auto flex size-14 items-center justify-center rounded-lg bg-surface-sunken">
+    <div className="mt-8 rounded-xl border border-border-default bg-surface-card p-8 sm:p-12">
+      <div className="mx-auto flex size-14 items-center justify-center rounded-button bg-surface-sunken">
         <Building2 className="size-7 text-text-secondary" aria-hidden="true" />
       </div>
-      <h2 className="mt-6 text-center text-xl font-semibold">
+      <h2 className="mt-6 text-center font-serif text-2xl font-normal">
         Заведите первый объект
       </h2>
       <p className="mx-auto mt-3 max-w-md text-center text-text-secondary">
@@ -124,7 +131,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 function Step({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <li className="rounded-button bg-surface-sunken p-4">
+    <li className="rounded-xl bg-surface-sunken p-4">
       <p className="font-mono text-xs text-text-tertiary">Шаг {n}</p>
       <p className="mt-1 font-medium">{title}</p>
       <p className="mt-1 text-text-secondary">{children}</p>
@@ -140,7 +147,7 @@ function PropertyList({ properties }: { properties: PropertyOut[] }) {
         return (
           <li
             key={property.id}
-            className="flex flex-col gap-4 rounded-lg border border-border-default bg-surface-card p-5 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-4 rounded-xl border border-border-default bg-surface-card p-5 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="flex items-start gap-4">
               <div className="flex size-11 shrink-0 items-center justify-center rounded-button bg-surface-sunken">
@@ -148,7 +155,7 @@ function PropertyList({ properties }: { properties: PropertyOut[] }) {
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold">{property.name}</h2>
+                  <h2 className="text-lg font-medium">{property.name}</h2>
                   <StatusBadge status={property.status} />
                 </div>
                 <p className="mt-1 text-sm text-text-secondary">
@@ -224,24 +231,24 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           create.mutate();
         }}
       >
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Название</span>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Например: Отель у моря"
-            required
-            minLength={2}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Тип жилья</span>
+        <Input
+          label="Название"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Например: Отель у моря"
+          required
+          minLength={2}
+        />
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+            Тип жилья
+          </span>
           <select
             value={propertyType}
             onChange={(e) =>
               setPropertyType(e.target.value as PropertyOut["property_type"])
             }
-            className="h-size-control-md w-full rounded-button border border-border-strong bg-surface-card px-3 text-sm text-text-primary focus:border-border-focus focus:outline-none"
+            className="h-size-control-field w-full rounded-lg border border-border-strong bg-surface-card px-4 text-base text-text-primary focus:border-border-focus focus:outline-none focus-visible:shadow-focus-ring"
           >
             {PROPERTY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -249,15 +256,13 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               </option>
             ))}
           </select>
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Город</span>
-          <Input
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="Например: Коктебель"
-          />
-        </label>
+        </div>
+        <Input
+          label="Город"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="Например: Коктебель"
+        />
         {create.isError ? (
           <p role="alert" className="text-sm text-feedback-error-text">
             {humanError(create.error, "Не удалось создать объект. Попробуйте ещё раз.")}

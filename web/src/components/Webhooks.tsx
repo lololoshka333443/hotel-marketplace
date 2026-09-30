@@ -31,7 +31,7 @@ export function Webhooks() {
 
   return (
     <section className="mt-10">
-      <h2 className="text-xl font-semibold">Вебхуки</h2>
+      <h2 className="font-serif text-2xl font-normal">Вебхуки</h2>
       <p className="mt-2 max-w-2xl text-sm text-text-secondary">
         Мы отправляем события наружу: брони, изменения цен и доступности.
         Каждый запрос подписан HMAC-ключом, который вы настраиваете на своей
@@ -57,7 +57,7 @@ export function Webhooks() {
           ))}
         </ul>
       ) : (
-        <p className="mt-4 rounded-lg border border-border-default bg-surface-card p-4 text-sm text-text-secondary">
+        <p className="mt-4 rounded-xl border border-border-default bg-surface-card p-4 text-sm text-text-secondary">
           Подписок нет. Создайте одну, чтобы получать события о бронях.
         </p>
       )}
@@ -92,7 +92,7 @@ function WebhookRow({ webhook }: { webhook: WebhookRowProps }) {
     : "neutral";
 
   return (
-    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-lg border border-border-default bg-surface-card p-4">
+    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-xl border border-border-default bg-surface-card p-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <Webhook className="size-4 shrink-0 text-text-tertiary" aria-hidden="true" />
@@ -213,34 +213,29 @@ function CreateWebhookButton() {
             if (url.trim() && secret.trim()) create.mutate();
           }}
         >
-          <label className="block text-sm">
-            <span className="mb-1 block text-text-secondary">URL</span>
+          <Input
+            label="URL"
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://your-channel.com/webhook"
+            required
+          />
+          <div className="flex flex-col gap-2">
             <Input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://your-channel.com/webhook"
-              required
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-text-secondary">
-              Секретный ключ
-            </span>
-            <Input
+              label="Секретный ключ"
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
               placeholder="Такой же, как на вашей стороне"
               required
               minLength={8}
+              hint="Им подписывается каждое сообщение (HMAC-SHA256), чтобы вы могли проверить отправителя."
             />
-            <span className="mt-1 block text-xs text-text-tertiary">
-              Им подписывается каждое сообщение (HMAC-SHA256), чтобы вы могли
-              проверить отправителя.
-            </span>
-          </label>
+          </div>
           <fieldset className="block text-sm">
-            <legend className="mb-2 text-text-secondary">События</legend>
+            <legend className="mb-2 text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+              События
+            </legend>
             <div className="space-y-2">
               {["*", ...ALL_EVENTS].map((type) => (
                 <label key={type} className="flex items-center gap-2">

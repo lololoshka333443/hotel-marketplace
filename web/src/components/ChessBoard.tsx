@@ -47,7 +47,7 @@ export function ChessBoard({ propertyId }: { propertyId: string }) {
   const units = data?.units ?? [];
   if (units.length === 0) {
     return (
-      <div className="rounded-lg border border-border-default bg-surface-card p-8">
+      <div className="rounded-xl border border-border-default bg-surface-card p-8">
         <p className="font-medium">У этого объекта ещё нет номеров</p>
         <p className="mt-2 text-sm text-text-secondary">
           Добавьте тип номера, и здесь появится расписание по датам.
@@ -61,7 +61,7 @@ export function ChessBoard({ propertyId }: { propertyId: string }) {
   return (
     <div className="space-y-4">
       <Legend />
-      <div className="overflow-hidden rounded-lg border border-border-default bg-surface-card">
+      <div className="overflow-hidden rounded-xl border border-border-default bg-surface-card">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">
@@ -125,9 +125,14 @@ function Cell({ cell, total }: { cell: CalendarDay; total: number }) {
           "inline-flex size-9 items-center justify-center rounded-button text-xs font-medium",
           state === "free" && "bg-surface-sunken text-text-primary",
           state === "hold" && "bg-feedback-warning-bg text-feedback-warning-text",
-          state === "sold" && "bg-feedback-info-bg text-feedback-info-text",
+          // Sold is the darkest wash of the three availability states: the new
+          // palette's info-bg is the same value as sunken, so depth — not hue —
+          // separates "sold out" from "free".
+          state === "sold" && "bg-interactive-active text-text-primary",
+          // Closed is a stop sell, so it takes the error family; action-secondary
+          // went transparent in the new palette and the swatch vanished.
           // text-secondary, not tertiary: the lock icon needs 3:1 (WCAG 1.4.11).
-          state === "closed" && "bg-action-secondary text-text-secondary",
+          state === "closed" && "bg-feedback-error-bg text-feedback-error-text",
         )}
         title={describe(cell, total)}
       >
@@ -164,10 +169,10 @@ function Legend() {
       <Item swatch="bg-feedback-warning-bg">
         <Clock className="size-3.5" aria-hidden="true" /> Ждут оплаты
       </Item>
-      <Item swatch="bg-feedback-info-bg">
+      <Item swatch="bg-interactive-active">
         <ShoppingCart className="size-3.5" aria-hidden="true" /> Продано
       </Item>
-      <Item swatch="bg-action-secondary">
+      <Item swatch="bg-feedback-error-bg">
         <Lock className="size-3.5" aria-hidden="true" /> Закрыто
       </Item>
     </ul>

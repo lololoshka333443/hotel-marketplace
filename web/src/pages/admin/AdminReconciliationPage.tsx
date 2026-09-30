@@ -66,9 +66,14 @@ export function AdminReconciliationPage() {
     ) ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold tracking-tight">Сверка с каналами</h1>
-      <p className="mt-2 text-text-secondary">
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Админка
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Сверка с каналами
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Каждая бронь, которую толкнул канал, против доставки её события: дошло
         ли подтверждение до вебхука партнёра. Если канал говорит «не получили» —
         ответ здесь.
@@ -81,22 +86,18 @@ export function AdminReconciliationPage() {
           refetch();
         }}
       >
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">С даты</span>
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">По дату</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </label>
+        <Input
+          label="С даты"
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+        />
+        <Input
+          label="По дату"
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+        />
         <Button type="submit" variant="secondary">
           Применить
         </Button>
@@ -136,7 +137,7 @@ export function AdminReconciliationPage() {
           </Button>
         </div>
       ) : list.length === 0 ? (
-        <p className="mt-10 rounded-lg border border-border-default bg-surface-card p-6 text-text-secondary">
+        <p className="mt-10 rounded-xl border border-border-default bg-surface-card p-6 text-text-secondary">
           {data && data.bookings.length > 0
             ? "Броней с таким статусом доставки нет в выбранном диапазоне."
             : "Броней от каналов нет в выбранном диапазоне."}
@@ -146,7 +147,7 @@ export function AdminReconciliationPage() {
           {list.map((row) => (
             <li
               key={row.booking_id}
-              className="rounded-lg border border-border-default bg-surface-card p-4"
+              className="rounded-xl border border-border-default bg-surface-card p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                 <div className="min-w-0">
@@ -177,7 +178,7 @@ export function AdminReconciliationPage() {
                   {row.event?.last_error ? (
                     <p
                       role="alert"
-                      className="mt-2 rounded bg-surface-sunken p-2 font-mono text-xs text-feedback-error-text"
+                      className="mt-2 rounded-lg bg-surface-sunken p-2 font-mono text-xs text-feedback-error-text"
                     >
                       {row.event.last_error}
                     </p>
@@ -212,7 +213,7 @@ function SummaryStrip({
       {cells.map((cell) => (
         <div
           key={cell.label}
-          className="rounded-lg border border-border-default bg-surface-card p-3"
+          className="rounded-xl border border-border-default bg-surface-card p-3"
         >
           <dt className="text-xs text-text-tertiary">{cell.label}</dt>
           <dd className="mt-1 text-lg font-semibold tabular-nums">

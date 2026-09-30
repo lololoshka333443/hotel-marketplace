@@ -25,7 +25,7 @@ export function IcalImport({ propertyId }: { propertyId: string }) {
 
   return (
     <section className="mt-10">
-      <h2 className="text-xl font-semibold">iCal-импорт</h2>
+      <h2 className="font-serif text-2xl font-normal">iCal-импорт</h2>
       <p className="mt-2 max-w-2xl text-sm text-text-secondary">
         Заблокированные даты из внешнего календаря закрывают номер у нас.
         Импорт не отменяет уже оплаченные брони и не снимает ваши ручные
@@ -83,7 +83,7 @@ function IcalImportRow({ unitType }: { unitType: UnitTypeOut }) {
     : null;
 
   return (
-    <li className="rounded-lg border border-border-default bg-surface-card p-4">
+    <li className="rounded-xl border border-border-default bg-surface-card p-4">
       <p className="font-medium">{unitType.name}</p>
 
       <form

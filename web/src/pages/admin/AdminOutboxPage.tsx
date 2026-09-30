@@ -55,9 +55,14 @@ export function AdminOutboxPage() {
   const list = data ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold tracking-tight">Доставка событий</h1>
-      <p className="mt-2 text-text-secondary">
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Админка
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Доставка событий
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Каждое событие наружу: бронь, цена, доступность. Если канал не получил
         его — здесь видно почему и когда была последняя попытка.
       </p>
@@ -98,7 +103,7 @@ export function AdminOutboxPage() {
           </Button>
         </div>
       ) : list.length === 0 ? (
-        <p className="mt-10 rounded-lg border border-border-default bg-surface-card p-6 text-text-secondary">
+        <p className="mt-10 rounded-xl border border-border-default bg-surface-card p-6 text-text-secondary">
           Событий нет. Они появляются, когда партнёр подключает вебхук и
           происходят изменения.
         </p>
@@ -107,7 +112,7 @@ export function AdminOutboxPage() {
           {list.map((event) => (
             <li
               key={event.id}
-              className="rounded-lg border border-border-default bg-surface-card p-4"
+              className="rounded-xl border border-border-default bg-surface-card p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                 <div className="min-w-0">
@@ -135,7 +140,7 @@ export function AdminOutboxPage() {
                   {event.last_error ? (
                     <p
                       role="alert"
-                      className="mt-2 rounded bg-surface-sunken p-2 font-mono text-xs text-feedback-error-text"
+                      className="mt-2 rounded-lg bg-surface-sunken p-2 font-mono text-xs text-feedback-error-text"
                     >
                       {event.last_error}
                     </p>
@@ -235,7 +240,7 @@ function OutboxMetricsStrip() {
       {isLagging || isShedding ? (
         <div
           role="alert"
-          className="rounded-lg border border-border-default bg-feedback-warning-bg p-3 text-sm text-feedback-warning-text"
+          className="rounded-xl border border-border-default bg-feedback-warning-bg p-3 text-sm text-feedback-warning-text"
         >
           {isShedding
             ? "Очередь достигла лимита — массовые события (цены, доступность) сбрасываются, пока воркер не разгребет отставание. Бронирования доставляются как обычно, тарифы канал забирает через read-API."
@@ -248,7 +253,7 @@ function OutboxMetricsStrip() {
         {cells.map((cell) => (
           <div
             key={cell.label}
-            className="rounded-lg border border-border-default bg-surface-card p-3"
+            className="rounded-xl border border-border-default bg-surface-card p-3"
           >
             <dt className="text-xs text-text-tertiary">{cell.label}</dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums">

@@ -41,39 +41,40 @@ export function AdminLoginPage() {
 
   return (
     <PageShell className="mx-auto max-w-md">
-      <h1 className="text-3xl font-bold tracking-tight">Вход для администратора</h1>
-      <p className="mt-2 text-text-secondary">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Админка
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Вход для администратора
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Отчёты по комиссии и модерация объектов.
       </p>
 
       <form
-        className="mt-8 space-y-4"
+        className="mt-10 space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
           login.mutate();
         }}
       >
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Email</span>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            placeholder="name@example.com"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Пароль</span>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          placeholder="name@example.com"
+          required
+        />
+        <Input
+          label="Пароль"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+        />
 
         {error ? (
           <p role="alert" className="text-sm text-feedback-error-text">

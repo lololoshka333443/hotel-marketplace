@@ -33,14 +33,19 @@ export function PartnerCalendarPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold tracking-tight">Шахматка</h1>
-      <p className="mt-2 text-text-secondary">
+    <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Кабинет партнёра
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Шахматка
+      </h1>
+      <p className="mt-4 text-text-secondary">
         Доступность и цены по датам. Свободно / ждут оплаты / продано / закрыто.
       </p>
 
       {!first ? (
-        <div className="mt-8 rounded-lg border border-border-default bg-surface-card p-8 text-center">
+        <div className="mt-8 rounded-xl border border-border-default bg-surface-card p-8 text-center">
           <p className="font-medium">У вас ещё нет объектов</p>
           <p className="mt-2 text-sm text-text-secondary">
             Добавьте объект, и здесь появится расписание по датам.
@@ -52,12 +57,14 @@ export function PartnerCalendarPage() {
       ) : (
         <div className="mt-8">
           <div className="mb-4 flex items-center justify-between gap-4">
-            <label className="text-sm">
-              <span className="mb-1 block text-text-secondary">Объект</span>
+            <label className="block">
+              <span className="mb-2 block text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+                Объект
+              </span>
               <select
                 value={activeId ?? undefined}
                 onChange={(e) => setSelectedId(e.target.value)}
-                className="h-size-control-md rounded-button border border-border-strong bg-surface-card px-3 text-sm text-text-primary focus:border-border-focus focus:outline-none"
+                className="h-size-control-field w-full rounded-lg border border-border-strong bg-surface-card px-4 text-base text-text-primary focus:border-border-focus focus:outline-none focus-visible:shadow-focus-ring"
               >
                 {list.map((p) => (
                   <option key={p.id} value={p.id}>

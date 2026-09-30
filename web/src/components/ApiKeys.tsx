@@ -23,7 +23,7 @@ export function ApiKeys() {
 
   return (
     <section className="mt-10">
-      <h2 className="text-xl font-semibold">API-ключи каналов</h2>
+      <h2 className="font-serif text-2xl font-normal">API-ключи каналов</h2>
       <p className="mt-2 max-w-2xl text-sm text-text-secondary">
         Канал (площадка или менеджер каналов) толкает бронирования через
         API-ключ. Ключ видит только ваши объекты и не может обойти закрытые
@@ -41,7 +41,7 @@ export function ApiKeys() {
           ))}
         </ul>
       ) : (
-        <p className="mt-4 rounded-lg border border-border-default bg-surface-card p-4 text-sm text-text-secondary">
+        <p className="mt-4 rounded-xl border border-border-default bg-surface-card p-4 text-sm text-text-secondary">
           Ключей пока нет. Создайте один, чтобы подключить канал.
         </p>
       )}
@@ -104,7 +104,7 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKeyOut }) {
     : "не использовался";
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-border-default bg-surface-card p-4">
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-border-default bg-surface-card p-4">
       <div className="flex items-center gap-3">
         <KeyRound className="size-5 shrink-0 text-text-tertiary" aria-hidden="true" />
         <div>
@@ -189,16 +189,14 @@ function CreateKeyButton({
             if (label.trim()) create.mutate();
           }}
         >
-          <label className="block text-sm">
-            <span className="mb-1 block text-text-secondary">Название</span>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Например: Суточно.ру"
-              required
-              minLength={2}
-            />
-          </label>
+          <Input
+            label="Название"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Например: Суточно.ру"
+            required
+            minLength={2}
+          />
           {create.isError ? (
             <p role="alert" className="text-sm text-feedback-error-text">
               Не удалось создать ключ. Попробуйте ещё раз.
