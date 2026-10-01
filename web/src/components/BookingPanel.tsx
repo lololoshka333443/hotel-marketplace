@@ -25,9 +25,11 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
   const [days, setDays] = useState<AvailabilityDay[] | null>(null);
   const [guest, setGuest] = useState({ name: "", email: "", phone: "" });
 
+  // The API reads a half-open interval [checkin, checkout): a checkout day is
+  // not a stay. Sending checkout - 1 collapses a one-night stay to an empty
+  // range and the API rejects it.
   const price = useMutation({
-    mutationFn: () =>
-      availability.get(unitTypeId, checkin, addDays(checkout, -1)),
+    mutationFn: () => availability.get(unitTypeId, checkin, checkout),
     onSuccess: (data) => setDays(data.days),
   });
 
@@ -189,12 +191,6 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, delta: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + delta);
-  return d.toISOString().slice(0, 10);
 }
 
 function plural(n: number, one: string, few: string, many: string): string {
