@@ -197,6 +197,80 @@ async def test_idempotency_conflict_on_different_payload(db_conn) -> None:
         )
 
 
+@pytest.mark.asyncio
+async def test_idempotency_same_key_other_guest_is_conflict(db_conn) -> None:
+    """A replay must repeat the guest too: another traveller is not a retry.
+
+    Two different guests on the same dates with a colliding key must be refused
+    loudly rather than silently replaying the first booking.
+    """
+    ut = await _seed_unit(db_conn, "b6b@example.com", total_units=1)
+    key = f"client-{uuid.uuid4()}"
+    other = {
+        "guest_name": "Пётр Другой",
+        "guest_email": "other@example.com",
+        "guest_phone": "+79990000000",
+    }
+
+    await service.create_hold(
+        db_conn,
+        unit_type_id=ut,
+        checkin=TODAY,
+        checkout=TODAY + dt.timedelta(days=2),
+        idempotency_key=key,
+        **_guest(),
+    )
+    with pytest.raises(Conflict):
+        await service.create_hold(
+            db_conn,
+            unit_type_id=ut,
+            checkin=TODAY,
+            checkout=TODAY + dt.timedelta(days=2),
+            idempotency_key=key,
+            **other,
+        )
+
+
+@pytest.mark.asyncio
+async def test_booking_by_code_roundtrip(committed_conn) -> None:
+    """The guest knows the BK-XXXXXX code, never the id.
+
+    A lowercase typed code still finds the booking: the lookup normalises.
+    """
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+
+    ut = await _seed_unit(committed_conn, "b6c@example.com")
+    hold = await service.create_hold(
+        committed_conn,
+        unit_type_id=ut,
+        checkin=TODAY,
+        checkout=TODAY + dt.timedelta(days=2),
+        **_guest(),
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get(f"/v1/bookings/by-code/{hold['code'].lower()}")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == hold["id"]
+    assert body["code"] == hold["code"]
+    assert len(body["lines"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_booking_by_code_unknown_is_404(committed_conn) -> None:
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+
+    with TestClient(create_app()) as client:
+        response = client.get("/v1/bookings/by-code/BK-NOPE00")
+
+    assert response.status_code == 404, response.text
+
 # ---------------------------------------------------------------- reaper
 
 

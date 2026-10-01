@@ -4,7 +4,7 @@ import { PropertyPage } from "@/pages/PropertyPage";
 import { CheckoutPage } from "@/pages/CheckoutPage";
 import { BookingSuccessPage } from "@/pages/BookingSuccessPage";
 import { LoginPage } from "@/pages/auth/LoginPage";
-import { RegisterPage } from "@/pages/auth/RegisterPage";
+import { MyBookingPage } from "@/pages/MyBookingPage";
 import { ComponentsPage } from "@/pages/ComponentsPage";
 import { PartnerLayout } from "@/pages/partner/PartnerLayout";
 import { PartnerDashboardPage } from "@/pages/partner/PartnerDashboardPage";
@@ -32,7 +32,7 @@ export const routes: RouteObject[] = [
       { path: "checkout/:bookingId", element: <CheckoutPage /> },
       { path: "booking/:bookingId/success", element: <BookingSuccessPage /> },
       { path: "login", element: <LoginPage /> },
-      { path: "register", element: <RegisterPage /> },
+      { path: "my-booking", element: <MyBookingPage /> },
       // States harness for the base components - gate/visual review only.
       { path: "components", element: <ComponentsPage /> },
       {

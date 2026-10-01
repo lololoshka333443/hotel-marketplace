@@ -69,6 +69,47 @@ async def create_hold(
         await pool.release(conn)
 
 
+
+@router.get("/by-code/{code}")
+async def get_booking_by_code(code: str) -> dict:
+    """Guest-facing lookup: the traveller knows the BK-XXXXXX code, never the id.
+
+    The code is unguessable (6 chars from a 32-char alphabet) and answers only
+    public stay details — no guest contacts, no payment state.
+    """
+    conn = await get_pool().acquire()
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT id::text, code, status, total_amount::float8, hold_expires_at,
+                   checkin_date, checkout_date, unit_type_id::text
+            FROM booking WHERE code = UPPER($1)
+            """,
+            code,
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="booking not found"
+            )
+        lines = await _line_dates(conn, row["id"])
+        return {
+            "id": row["id"],
+            "code": row["code"],
+            "status": row["status"],
+            "total_amount": row["total_amount"],
+            "hold_expires_at": row["hold_expires_at"].isoformat()
+            if row["hold_expires_at"]
+            else None,
+            "checkin_date": row["checkin_date"].isoformat(),
+            "checkout_date": row["checkout_date"].isoformat(),
+            "lines": [
+                {"date": ln["date"].isoformat(), "price": ln["price"]} for ln in lines
+            ],
+        }
+    finally:
+        await get_pool().release(conn)
+
+
 @router.get("/{booking_id}")
 async def get_booking(booking_id: str) -> dict:
     conn = await get_pool().acquire()

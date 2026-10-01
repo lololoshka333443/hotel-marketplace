@@ -1,0 +1,127 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+
+import { bookings } from "@/api/client";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+
+const STATUS_LABEL: Record<string, string> = {
+  hold: "Ожидает оплаты",
+  paid: "Оплачивается",
+  confirmed: "Подтверждена",
+  cancelled: "Отменена",
+  failed: "Платёж не прошёл",
+  refunded: "Возвращена",
+};
+
+/**
+ * The guest's way back to a booking: the traveller has the BK-XXXXXX code from
+ * the success page or the email, never the UUID. A found booking links to its
+ * checkout, which owns the pay/cancel actions.
+ */
+export function MyBookingPage() {
+  useDocumentTitle("Моя бронь");
+  const navigate = useNavigate();
+  const [code, setCode] = useState("");
+  const [submitted, setSubmitted] = useState<string | null>(null);
+
+  const { data: booking, isPending, isError } = useQuery({
+    queryKey: ["booking-by-code", submitted],
+    queryFn: ({ signal }) => bookings.byCode(submitted as string, signal),
+    enabled: submitted !== null,
+    retry: false,
+  });
+
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) return;
+    setSubmitted(trimmed);
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-24 sm:px-6">
+      <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
+        Бронирование
+      </p>
+      <h1 className="mt-4 font-serif text-4xl font-normal leading-display tracking-tight">
+        Найти мою бронь
+      </h1>
+      <p className="mt-4 text-text-secondary">
+        Введите код брони — он начинается на «BK» и есть в письме подтверждения.
+      </p>
+
+      <form
+        className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end"
+        onSubmit={onSubmit}
+      >
+        <div className="flex-1">
+          <Input
+            label="Код брони"
+            placeholder="BK-7K2Q9F"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            hasError={isError}
+            hint={
+              isError
+                ? "Такой брони нет. Проверьте код — он в письме подтверждения."
+                : undefined
+            }
+          />
+        </div>
+        <Button type="submit" loading={isPending} disabled={!code.trim()}>
+          Найти
+        </Button>
+      </form>
+
+      {booking ? (
+        <section className="mt-10 rounded-xl border border-border-default bg-surface-card p-6">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="font-serif text-2xl font-normal">
+              {STATUS_LABEL[booking.status] ?? booking.status}
+            </h2>
+            <span className="font-mono text-sm text-text-tertiary">
+              {booking.code}
+            </span>
+          </div>
+          <dl className="mt-5 space-y-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-text-secondary">Заезд</dt>
+              <dd>{booking.checkin_date}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-text-secondary">Выезд</dt>
+              <dd>{booking.checkout_date}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-border-default pt-3">
+              <dt className="text-text-secondary">Сумма</dt>
+              <dd>
+                <strong>{booking.total_amount.toFixed(0)} ₽</strong>
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-6">
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/checkout/${booking.id}`)}
+            >
+              Перейти к бронированию
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      <p className="mt-10 text-sm text-text-tertiary">
+        Не помните код?{" "}
+        <Link to="/search" className="underline underline-offset-[3px]">
+          Подберите жильё заново
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}

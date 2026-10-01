@@ -25,6 +25,7 @@ export function AppLayout() {
           </Link>
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
             <NavLink to="/search">Номера</NavLink>
+            <NavLink to="/my-booking">Моя бронь</NavLink>
             {getToken() ? (
               <>
                 <NavLink to="/partner">Кабинет</NavLink>

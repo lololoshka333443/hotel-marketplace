@@ -168,7 +168,12 @@ export const bookings = {
     }),
   get: (id: string, signal?: AbortSignal) =>
     request<BookingOut>(`/bookings/${id}`, { signal }),
-  pay: (id: string) => request<BookingOut>(`/bookings/${id}/pay`, { method: "POST" }),
+  byCode: (code: string, signal?: AbortSignal) =>
+    request<BookingOut>(`/bookings/by-code/${encodeURIComponent(code)}`, {
+      signal,
+    }),
+  pay: (id: string) =>
+    request<BookingOut>(`/bookings/${id}/pay`, { method: "POST" }),
   cancel: (id: string) =>
     request<BookingOut>(`/bookings/${id}/cancel`, { method: "POST" }),
   refund: (id: string) =>

@@ -36,7 +36,10 @@ export function BookingSuccessPage() {
         <Link to="/search">
           <Button variant="secondary">Найти ещё жильё</Button>
         </Link>
-      </div>
+        <Link to="/my-booking">
+          <Button variant="tertiary">Найти бронь по коду</Button>
+        </Link>
+    </div>
     </div>
   );
 }
