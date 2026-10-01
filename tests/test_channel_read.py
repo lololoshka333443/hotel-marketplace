@@ -277,7 +277,7 @@ async def test_availability_unreachable_day_is_not_free(db_conn) -> None:
 
 @pytest.fixture(scope="module")
 async def world() -> AsyncIterator[dict]:
-    pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=1, max_size=2)
+    pool = await asyncpg.create_pool(dsn=settings.test_dsn, min_size=1, max_size=2)
     conn = await pool.acquire()
     try:
         mine = await _seed(conn, "read-mine@example.com", base_price=3000, total_units=2)

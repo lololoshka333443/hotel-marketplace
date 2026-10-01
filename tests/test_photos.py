@@ -59,7 +59,7 @@ def media_tmp(tmp_path_factory) -> Iterator:
 @pytest.fixture(scope="module")
 async def world(media_tmp) -> AsyncIterator[dict]:
     """Two partners, one property each, and tokens for both."""
-    pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=1, max_size=5)
+    pool = await asyncpg.create_pool(dsn=settings.test_dsn, min_size=1, max_size=5)
     conn = await pool.acquire()
     try:
         partner_a = await auth_service.register_partner(
@@ -327,7 +327,7 @@ def test_unauthenticated_is_401(client: TestClient, world: dict) -> None:
 
 async def test_jsonb_shape_matches_service(client: TestClient, world: dict) -> None:
     """The stored jsonb is the shape the catalog payload documents."""
-    conn = await asyncpg.connect(dsn=settings.database_url)
+    conn = await asyncpg.connect(dsn=settings.test_dsn)
     try:
         row = await conn.fetchval(
             "SELECT photos::jsonb FROM property WHERE id = $1",

@@ -307,7 +307,7 @@ async def test_concurrent_holds_single_room() -> None:
     Uses its own pool (committed seed) because the racing connections must all
     see the same data; cleans everything up afterwards.
     """
-    pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=5, max_size=25)
+    pool = await asyncpg.create_pool(dsn=settings.test_dsn, min_size=5, max_size=25)
     try:
         async with pool.acquire() as setup:
             ut = await _seed_unit(setup, "b8@example.com", total_units=1)

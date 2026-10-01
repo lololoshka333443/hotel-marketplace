@@ -170,7 +170,7 @@ async def test_acquire_fails_open_without_redis(monkeypatch) -> None:
 
 @pytest.fixture(scope="module")
 async def world() -> AsyncIterator[dict]:
-    pool = await asyncpg.create_pool(dsn=settings.database_url, min_size=1, max_size=2)
+    pool = await asyncpg.create_pool(dsn=settings.test_dsn, min_size=1, max_size=2)
     conn = await pool.acquire()
     try:
         mine = await _seed(conn, "rl-mine@example.com")

@@ -1,0 +1,98 @@
+name: CI
+
+# The suite runs against its own database, not the developer's.
+#
+# A `committed_conn` test DELETEs every row of every table, so before the
+# isolation landed a test run wiped the demo content the frontend was developed
+# against. The suite now creates hotel_mp_test once per session and drops it on
+# the way out — here that database is the one the Postgres service container
+# provides. Nothing in this workflow ever touches a long-lived database.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # 16 matches the version the schema is developed against.
+        image: postgres:16
+        env:
+          POSTGRES_USER: hotel_user
+          POSTGRES_PASSWORD: hotel_pass
+          POSTGRES_DB: hotel_mp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        # Availability caching and the rate limiters live in Redis.
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://hotel_user:hotel_pass@localhost:5432/hotel_mp
+      REDIS_URL: redis://localhost:6379/0
+      # The webhook seal key has to exist for subscription creation to succeed;
+      # CI owns no real secrets, so a generated one is fine.
+      WEBHOOK_SEAL_KEY: ${{ secrets.WEBHOOK_SEAL_KEY || 'ci-only-seal-key-not-a-real-secret' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run Python
+        run: uv sync
+
+      # Migrations are part of the gate: a pending migration here means the
+      # schema in the repo and the code have drifted apart.
+      - name: Check for pending migrations
+        run: uv run python -m app.db.migrate --check
+
+      - name: Ruff
+        run: uv run ruff check app tests scripts
+
+      # The suite provisions hotel_mp_test itself; no database setup step is
+      # needed, and nothing here has to be cleaned up afterwards.
+      - name: Pytest
+        run: uv run pytest tests/ -q
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: web
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        working-directory: web
+        run: npm run build

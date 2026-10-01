@@ -4,12 +4,28 @@ All settings come from environment / .env. No magic constants here —
 legal/business parameters live in `app/config/legal.py` and `app/config/payment.py`.
 """
 
+import os
+import urllib.parse
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _test_sibling(database_url: str) -> str:
+    """The `_test` sibling of a DSN: same server and credentials, other database.
+
+    Only the path (the database name) changes; query strings (sslmode and the
+    like) are carried over untouched.
+    """
+    split = urllib.parse.urlsplit(database_url)
+    if not split.path or split.path == "/":
+        raise ValueError(
+            "DATABASE_URL has no database name — cannot derive a test database"
+        )
+    return urllib.parse.urlunsplit(split._replace(path=f"{split.path}_test"))
 
 
 class Settings(BaseSettings):
@@ -146,7 +162,37 @@ class Settings(BaseSettings):
 
     @property
     def test_dsn(self) -> str:
-        """asyncpg connection string (no +scheme, plain postgresql://)."""
+        """DSN the test suite connects to.
+
+        The suite must not wipe the developer's database: a `committed_conn`
+        test DELETEs every row in every table, so running pytest used to
+        destroy the demo content the frontend is developed against. Unless
+        that is explicitly asked for, the tests get the `_test` sibling of
+        DATABASE_URL — a database they own and can drop.
+
+        Set PYTEST_DISABLE_TEST_DB=1 to write to DATABASE_URL directly; only
+        do that when it really is a throwaway database.
+        """
+        if os.environ.get("PYTEST_DISABLE_TEST_DB") == "1":
+            return self.database_url
+        return _test_sibling(self.database_url)
+
+    @property
+    def pool_dsn(self) -> str:
+        """DSN the app's connection pool uses.
+
+        Production and local dev use DATABASE_URL. Under pytest the app pool
+        must point at `test_dsn`, not DATABASE_URL: the suite seeds its own
+        throwaway database, and a `TestClient` booted inside a test would
+        otherwise read a different database from the one the test wrote to —
+        every HTTP test would fail with a 404.
+
+        PYTEST_RUNNING is set by the suite itself (conftest), never by
+        production code, so a deployed entry point cannot land here by
+        accident.
+        """
+        if os.environ.get("PYTEST_RUNNING") == "1":
+            return self.test_dsn
         return self.database_url
 
 

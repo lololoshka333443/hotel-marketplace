@@ -48,14 +48,18 @@ async def _ensure_tracking_table(conn) -> None:
     )
 
 
-async def run_migrations(check_only: bool = False) -> list[int]:
-    """Apply all pending migrations. Returns list of applied version numbers."""
+async def run_migrations(check_only: bool = False, dsn: str | None = None) -> list[int]:
+    """Apply all pending migrations. Returns list of applied version numbers.
+
+    `dsn` selects the database; it defaults to DATABASE_URL. The test suite
+    passes its own throwaway database so it never has to migrate the dev one.
+    """
     import asyncpg
 
     applied: list[int] = []
     migrations = await _list_migrations()
 
-    conn = await asyncpg.connect(dsn=settings.database_url)
+    conn = await asyncpg.connect(dsn=dsn or settings.database_url)
     try:
         await _ensure_tracking_table(conn)
         rows = await conn.fetch("SELECT version FROM schema_migrations")

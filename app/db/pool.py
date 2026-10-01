@@ -19,11 +19,18 @@ _pool: Pool | None = None
 
 
 async def init_pool() -> Pool:
-    """Create the global pool. Call once on startup."""
+    """Create the global pool. Call once on startup.
+
+    The pool follows `settings.database_url` in production. Under pytest it
+    follows `settings.test_dsn` instead — the throwaway database the suite
+    creates — so a `TestClient` booted inside a test reads and writes the
+    same rows the test's own connection does. Without this the app's pool and
+    the fixtures would be two databases, and every HTTP test would 404.
+    """
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(
-            dsn=settings.database_url,
+            dsn=settings.pool_dsn,
             min_size=5,
             max_size=25,
             command_timeout=30,
