@@ -14,6 +14,8 @@ import json
 import sys
 from pathlib import Path
 
+import asyncpg
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -88,6 +90,76 @@ PROPERTIES = [
         ],
     },
 ]
+
+DEMO_BOOKINGS = [
+    # (room_no, guest name, nights from today, status)
+    (3, "Анна Морозова", 4, "confirmed"),
+    (5, "Дмитрий Соколов", 10, "confirmed"),
+    (1, "Елена Васильева", 2, "confirmed"),
+    (6, "Сергей Кузнецов", 18, "confirmed"),
+    (4, "Ольга Никитина", 7, "confirmed"),
+]
+
+
+async def _seed_bookings(conn: asyncpg.Connection, partner_id: str) -> None:
+    """Confirmed demo bookings so the partner chessboard, the iCal feed and the
+    admin commission report are not empty in the demo.
+
+    Goes through create_hold + pay_and_confirm — the same path a guest takes —
+    so the inventory, commission and outbox rows are exactly what a real
+    booking leaves behind. Idempotent by key: a re-seed never duplicates.
+    """
+    import datetime as dt
+
+    from app.modules.booking import service as booking_service
+    from app.modules.payment import service as payment_service
+
+    today = dt.date.today()
+    seeded = 0
+    for room_no, guest_name, nights, _status in DEMO_BOOKINGS:
+        unit_type_id = await conn.fetchrow(
+            """
+            SELECT ut.id::text
+            FROM unit_type ut
+            JOIN property p ON p.id = ut.property_id
+            WHERE p.partner_id = $1
+              AND ut.name LIKE ('Номер ' || $2 || ' ·%')
+            ORDER BY ut.name
+            LIMIT 1
+            """,
+            partner_id,
+            str(room_no),
+        )
+        if unit_type_id is None:
+            continue
+        unit_type_id = unit_type_id["id"]
+
+        idem = f"demo-booking-{room_no}"
+        checkin = today + dt.timedelta(days=nights)
+        checkout = checkin + dt.timedelta(days=2)
+
+        existing = await conn.fetchval(
+            "SELECT id::text FROM booking WHERE idempotency_key = $1",
+            idem,
+        )
+        if existing is not None:
+            continue
+
+        async with conn.transaction(isolation="serializable"):
+            hold = await booking_service.create_hold(
+                conn,
+                unit_type_id=unit_type_id,
+                checkin=checkin,
+                checkout=checkout,
+                guest_name=guest_name,
+                guest_email=f"demo-{room_no}@example.com",
+                guest_phone="+79990000000",
+                idempotency_key=idem,
+            )
+        await payment_service.pay_and_confirm(hold["id"], conn=conn)
+        seeded += 1
+    if seeded:
+        log.info("demo-bookings-seeded", count=seeded)
 
 
 async def main() -> int:
@@ -222,6 +294,8 @@ async def main() -> int:
                 ADMIN_EMAIL,
                 __import__("hashlib").sha256(ADMIN_PASSWORD.encode()).hexdigest(),
             )
+
+            await _seed_bookings(conn, partner_id)
 
             print(
                 f"seeded: partner {PARTNER_EMAIL} / {len(PROPERTIES)} properties, "
