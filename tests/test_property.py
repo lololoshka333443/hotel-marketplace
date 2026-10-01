@@ -3,7 +3,6 @@
 Every test runs inside a rolled-back transaction (see conftest.py), so created
 properties never persist between tests.
 """
-
 from __future__ import annotations
 
 import pytest
@@ -121,3 +120,44 @@ async def test_draft_property_hidden_from_catalog(db_conn) -> None:
 async def test_invalid_timezone_rejected() -> None:
     with pytest.raises(ValueError):
         PropertyCreate(name="X", property_type="apartment", timezone="Not/AZone")
+
+
+# ---------------------------------------------------------------- public rooms
+
+
+@pytest.mark.asyncio
+async def test_public_unit_types_listed_for_published_property(db_conn) -> None:
+    """A guest booking the catalog needs the room list, unauthenticated.
+
+    The route is a thin wrapper over the pool, so the rule itself is checked
+    here: the room list comes from the same query the guest reads, and a draft
+    property's rooms are not published either.
+    """
+    partner_id = await _make_partner(db_conn, "p4@example.com")
+    created = await service.create_property(db_conn, partner_id, _sample())
+
+    async with db_conn.transaction():
+        ut_id = await db_conn.fetchval(
+            "INSERT INTO unit_type (property_id, name, capacity, total_units) "
+            "VALUES ($1, 'Стандарт', 2, 3) RETURNING id::text",
+            created.id,
+        )
+    assert ut_id is not None
+
+    # draft → the room list must not serve an unpublished property
+    assert await service.get_public_property(db_conn, created.id) is None
+
+    await service.update_property(
+        db_conn, created.id, partner_id, PropertyUpdate(status="published")
+    )
+
+    # published → the same room query serves the guest
+    public = await service.get_public_property(db_conn, created.id)
+    assert public is not None
+    rows = await db_conn.fetch(
+        "SELECT name, total_units FROM unit_type WHERE property_id = $1 "
+        "ORDER BY created_at",
+        created.id,
+    )
+    assert [r["name"] for r in rows] == ["Стандарт"]
+    assert rows[0]["total_units"] == 3

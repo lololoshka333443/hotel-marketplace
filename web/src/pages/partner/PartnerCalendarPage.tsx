@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-
 import { getToken, partner } from "@/api/client";
 import { ChessBoard } from "@/components/ChessBoard";
 import { IcalExport } from "@/components/IcalExport";
 import { IcalImport } from "@/components/IcalImport";
 import { ApiKeys } from "@/components/ApiKeys";
 import { Webhooks } from "@/components/Webhooks";
+import { RateManager } from "@/components/RateManager";
+import { StopSellManager } from "@/components/StopSellManager";
+import { UnitTypeManager } from "@/components/UnitTypeManager";
 import { Button } from "@/components/ui/Button";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -77,6 +79,9 @@ export function PartnerCalendarPage() {
           {activeId ? <ChessBoard propertyId={activeId} /> : null}
           {activeId ? <IcalExport propertyId={activeId} /> : null}
           {activeId ? <IcalImport propertyId={activeId} /> : null}
+          {activeId ? <UnitTypeManager propertyId={activeId} /> : null}
+          {activeId ? <RatesForProperty propertyId={activeId} /> : null}
+          {activeId ? <StopSellForProperty propertyId={activeId} /> : null}
         </div>
       )}
 
@@ -84,4 +89,23 @@ export function PartnerCalendarPage() {
       <Webhooks />
     </div>
   );
+}
+
+/** Rates and stop sell are per unit type, so they need the property's rows. */
+function RatesForProperty({ propertyId }: { propertyId: string }) {
+  const { data: unitTypes } = useQuery({
+    queryKey: ["unit-types", propertyId],
+    queryFn: () => partner.listUnitTypes(propertyId),
+  });
+  if (!unitTypes || unitTypes.length === 0) return null;
+  return <RateManager unitTypes={unitTypes} />;
+}
+
+function StopSellForProperty({ propertyId }: { propertyId: string }) {
+  const { data: unitTypes } = useQuery({
+    queryKey: ["unit-types", propertyId],
+    queryFn: () => partner.listUnitTypes(propertyId),
+  });
+  if (!unitTypes || unitTypes.length === 0) return null;
+  return <StopSellManager unitTypes={unitTypes} />;
 }

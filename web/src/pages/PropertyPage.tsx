@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import { useState } from "react";
 
-import { catalog, partner } from "@/api/client";
+import { catalog } from "@/api/client";
 import { BookingPanel } from "@/components/BookingPanel";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -18,7 +18,7 @@ export function PropertyPage() {
   // Unit types of this property - what guests actually book.
   const { data: unitTypes } = useQuery({
     queryKey: ["unit-types", id],
-    queryFn: () => partner.listUnitTypes(id as string),
+    queryFn: () => catalog.listUnitTypes(id as string),
     enabled: Boolean(id),
   });
 

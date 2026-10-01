@@ -68,13 +68,19 @@ def _guest() -> dict:
 
 
 def _push(seed: dict, key: str, *, checkin=None, checkout=None, idem="req-1") -> dict:
+    """One push is one channel request; a retry repeats it verbatim.
+
+    The guest email is derived from the key on purpose: an idempotency replay
+    must repeat the *same* request, and a random email per call would turn
+    every retry into a different guest.
+    """
     return dict(
         partner_id=seed["partner_id"],
         unit_type_id=seed["unit_type_id"],
         checkin=checkin or TODAY + dt.timedelta(days=10),
         checkout=checkout or TODAY + dt.timedelta(days=12),
         guest_name="Иван Гость",
-        guest_email=f"g{uuid.uuid4().hex[:6]}@example.com",
+        guest_email=f"g{idem}@example.com",
         guest_phone="+79991234567",
         client_key=idem,
     )

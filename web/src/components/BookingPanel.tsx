@@ -35,13 +35,13 @@ export function BookingPanel({ unitTypeId, currency }: BookingPanelProps) {
     mutationFn: () =>
       bookings.hold(
         { unit_type_id: unitTypeId, checkin, checkout, guest },
-        `hold-${unitTypeId}-${checkin}-${checkout}`,
+        `hold-${unitTypeId}-${checkin}-${checkout}-${guest.email}`,
       ),
     onSuccess: (data) => navigate(`/checkout/${data.id}`),
   });
 
   const total = days ? days.reduce((s, d) => s + (d.price ?? 0), 0) : 0;
-  const blocked = days?.some((d) => !d.available) ?? false;
+  const blocked = days?.some((d) => d.free <= 0 || d.closed) ?? false;
   const guestComplete = Boolean(guest.name && guest.email && guest.phone);
   const canBook = Boolean(checkin && checkout) && !blocked && guestComplete;
 

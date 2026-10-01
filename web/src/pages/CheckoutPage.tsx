@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, Clock } from "lucide-react";
-
 import { bookings } from "@/api/client";
 import { humanError } from "@/utils/errors";
 import { Button } from "@/components/ui/Button";
+import { CancelBooking } from "@/components/CancelBooking";
 import { useCountdown, formatCountdown } from "@/hooks/useCountdown";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -28,13 +28,22 @@ export function CheckoutPage() {
     },
   });
 
+  const refund = useMutation({
+    mutationFn: () => bookings.refund(bookingId as string),
+    onSuccess: () => navigate("/", { replace: true }),
+  });
+
   const msLeft = useCountdown(booking?.hold_expires_at);
   const isHold = booking?.status === "hold";
   const isConfirmed = booking?.status === "confirmed";
-  const expired = isHold && msLeft === 0;
+  // The reaper moves an expired hold to `cancelled`, so a lapsed booking lands
+  // here too — without this branch the page would show payment with a dead
+  // button and no way back.
+  const isCancelled = booking?.status === "cancelled";
+  const lapsed = isCancelled || (isHold && msLeft === 0);
 
   // While the hold is live the guest keeps the price; after expiry it lapses.
-  const expiredOrPaid = expired || isConfirmed;
+  const expiredOrPaid = lapsed || isConfirmed;
 
   if (isPending) {
     return (
@@ -71,7 +80,7 @@ export function CheckoutPage() {
       <p className="mt-2 font-mono text-sm text-text-tertiary">{booking.code}</p>
 
       {isConfirmed ? <ConfirmedState /> : null}
-      {expired ? <ExpiredState code={booking.code} /> : null}
+      {lapsed ? <LapsedState code={booking.code} /> : null}
 
       <section className="mt-10 rounded-xl border border-border-default bg-surface-card p-8">
         <h2 className="font-serif text-2xl font-normal">Ваша бронь</h2>
@@ -116,7 +125,7 @@ export function CheckoutPage() {
         <div className="mt-8">
           <Button
             onClick={() => pay.mutate()}
-            disabled={!isHold || expired || pay.isPending}
+            disabled={!isHold || lapsed || pay.isPending}
             loading={pay.isPending}
             className="w-full"
             size="lg"
@@ -140,6 +149,17 @@ export function CheckoutPage() {
           </p>
         </div>
       </section>
+
+        {isConfirmed ? (
+          <div className="mt-8 border-t border-border-default pt-6">
+            <CancelBooking
+              code={booking.code}
+              onConfirm={() => refund.mutate()}
+              pending={refund.isPending}
+              error={refund.isError ? refund.error : null}
+            />
+          </div>
+        ) : null}
     </div>
   );
 }
@@ -164,7 +184,7 @@ function ConfirmedState() {
   );
 }
 
-function ExpiredState({ code }: { code: string }) {
+function LapsedState({ code }: { code: string }) {
   return (
     <div className="mt-8 border border-border-default bg-feedback-error-bg p-5 text-feedback-error-text">
       <p className="font-medium">Время оплаты истекло</p>

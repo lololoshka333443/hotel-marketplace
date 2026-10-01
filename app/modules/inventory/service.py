@@ -167,25 +167,35 @@ async def get_availability(
     except Exception as exc:
         log.warning("avail-cache-read-failed", error=str(exc))
 
-    rows = await conn.fetch(
+    # The guest's total is the sum of these prices, so the availability read
+    # has to carry one. price_day lives in the active rate plan; a day without
+    # an explicit price falls back to the unit type's base price, exactly as
+    # the partner calendar and the channel read-API do it.
+    priced = await conn.fetch(
         """
-        SELECT date,
-               available,
-               hold,
-               sold,
-               closed,
-               (available - hold - sold) AS free
-        FROM inventory_day
-        WHERE unit_type_id = $1
-          AND date >= $2
-          AND date <  $3
-        ORDER BY date
+        SELECT i.date,
+               i.available,
+               i.hold,
+               i.sold,
+               i.closed,
+               (i.available - i.hold - i.sold) AS free,
+               COALESCE(pd.price::float8, ut.base_price::float8) AS price
+        FROM inventory_day i
+        JOIN unit_type ut ON ut.id = i.unit_type_id
+        LEFT JOIN rate_plan rp
+               ON rp.unit_type_id = ut.id AND rp.active
+        LEFT JOIN price_day pd
+               ON pd.rate_plan_id = rp.id AND pd.date = i.date
+        WHERE i.unit_type_id = $1
+          AND i.date >= $2
+          AND i.date <  $3
+        ORDER BY i.date
         """,
         unit_type_id,
         date_from,
         date_to,
     )
-    out = [dict(r) for r in rows]
+    out = [dict(r) for r in priced]
 
     try:
         import json

@@ -98,16 +98,23 @@ async def create_hold(
         existing = await conn.fetchrow(
             """
             SELECT id::text, code, status, total_amount, hold_expires_at,
-                   checkin_date, checkout_date, unit_type_id::text
+                   checkin_date, checkout_date, unit_type_id::text,
+                   guest_name, guest_email, guest_phone
             FROM booking WHERE idempotency_key = $1
             """,
             idempotency_key,
         )
         if existing is not None:
+            # The whole request must match, guest included: without the guest
+            # in `same`, two different people on the same dates would replay
+            # one booking instead of getting their own.
             same = (
                 existing["unit_type_id"] == unit_type_id
                 and existing["checkin_date"] == checkin
                 and existing["checkout_date"] == checkout
+                and existing["guest_name"] == guest_name
+                and existing["guest_email"] == guest_email
+                and existing["guest_phone"] == guest_phone
             )
             if not same:
                 raise Conflict("idempotency key used with different payload")

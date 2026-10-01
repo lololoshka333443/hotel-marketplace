@@ -103,5 +103,4 @@ async def list_unit_types(
     finally:
         await get_pool().release(conn)
 
-
 _ = dt

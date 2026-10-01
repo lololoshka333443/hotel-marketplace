@@ -15,9 +15,11 @@ import { AdminReportsPage } from "@/pages/admin/AdminReportsPage";
 import { AdminModerationPage } from "@/pages/admin/AdminModerationPage";
 import { AdminOutboxPage } from "@/pages/admin/AdminOutboxPage";
 import { AdminReconciliationPage } from "@/pages/admin/AdminReconciliationPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
 import type { RouteObject } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
+
 
 export const routes: RouteObject[] = [
   {
@@ -52,6 +54,9 @@ export const routes: RouteObject[] = [
           { path: "reconciliation", element: <AdminReconciliationPage /> },
         ],
       },
+      // The SPA fallback serves index.html on any URL, so an unknown path still
+      // runs the app - it needs a real screen, not a blank one.
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ];

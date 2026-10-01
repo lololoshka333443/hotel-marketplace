@@ -79,7 +79,18 @@ export interface UnitTypeOut {
   name: string;
   capacity: number;
   total_units: number;
+  base_price?: number;
 }
+
+/** A rate plan: the price schedule of one unit type. */
+export interface RatePlan {
+  id: string;
+  unit_type_id: string;
+  name: string;
+  cancellation_policy: string;
+  active: boolean;
+}
+
 
 export interface GuestInfo {
   name: string;
@@ -112,9 +123,12 @@ export interface BookingOut {
 
 export interface AvailabilityDay {
   date: string; // ISO date
-  available: boolean;
-  price: number | null;
+  available: number;
+  hold: number;
+  sold: number;
+  free: number;
   closed: boolean;
+  price: number;
 }
 
 /** One cell of the partner chessboard. */

@@ -18,6 +18,7 @@ import type {
   IcalSubscription,
   OutboxEvent,
   OutboxMetrics,
+  RatePlan,
   ReconciliationReport,
   SyncResult,
   WebhookOut,
@@ -139,6 +140,11 @@ export const catalog = {
   },
   get: (id: string, signal?: AbortSignal) =>
     request<PropertyPublic>(`/properties/${id}`, { signal }),
+  listUnitTypes: (propertyId: string, signal?: AbortSignal) =>
+    request<UnitTypeOut[]>(
+      `/public/unit-types/${encodeURIComponent(propertyId)}`,
+      { signal },
+    ),
 };
 
 export const availability = {
@@ -165,6 +171,8 @@ export const bookings = {
   pay: (id: string) => request<BookingOut>(`/bookings/${id}/pay`, { method: "POST" }),
   cancel: (id: string) =>
     request<BookingOut>(`/bookings/${id}/cancel`, { method: "POST" }),
+  refund: (id: string) =>
+    request<BookingOut>(`/bookings/${id}/refund`, { method: "POST" }),
 };
 
 // ---- admin ----------------------------------------------------------------
@@ -254,8 +262,51 @@ export const partner = {
         { method: "DELETE" },
       ),
   },
-  listUnitTypes: (propertyId: string) =>
-    request<UnitTypeOut[]>(`/partner/unit-types/property/${propertyId}`),
+  createUnitType: (body: {
+    property_id: string;
+    name: string;
+    capacity: number;
+    total_units: number;
+  }) =>
+    request<UnitTypeOut>("/partner/unit-types", { method: "POST", body }),
+  ratePlans: {
+    list: (unitTypeId: string, signal?: AbortSignal) =>
+      request<RatePlan[]>(
+        `/partner/rate-plans?unit_type_id=${encodeURIComponent(unitTypeId)}`,
+        { signal },
+      ),
+    create: (body: {
+      unit_type_id: string;
+      name: string;
+      cancellation_policy: string;
+    }) =>
+      request<RatePlan>("/partner/rate-plans", { method: "POST", body }),
+  },
+  prices: {
+    set: (body: {
+      rate_plan_id: string;
+      date_from: string;
+      date_to: string;
+      price: number;
+      min_stay: number;
+    }) => request<{ status: string }>("/partner/prices", { method: "POST", body }),
+  },
+  inventory: {
+    close: (body: {
+      unit_type_id: string;
+      date_from: string;
+      date_to: string;
+      closed: boolean;
+    }) =>
+      request<{ affected: number }>("/partner/inventory/close", {
+        method: "POST",
+        body,
+      }),
+  },
+  listUnitTypes: (propertyId: string, signal?: AbortSignal) =>
+    request<UnitTypeOut[]>(`/partner/unit-types/property/${propertyId}`, {
+      signal,
+    }),
   calendar: (propertyId: string, dateFrom: string, dateTo: string) =>
     request<CalendarResponse>(
       `/partner/calendar?property_id=${encodeURIComponent(
