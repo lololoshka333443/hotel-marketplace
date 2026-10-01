@@ -36,7 +36,41 @@ class BookingOut(BaseModel):
     hold_expires_at: dt.datetime | None = None
     checkin_date: dt.date
     checkout_date: dt.date
-    lines: list[BookingLineOut] = []
+
+class PartnerBookingLineOut(BaseModel):
+    """One night of a booking, as the partner sees the price split."""
+
+    date: dt.date
+    price: float
+
+
+class PartnerBookingOut(BaseModel):
+    """A booking on the partner's own inventory.
+
+    Unlike the guest's BookingOut this carries the guest's contacts and where
+    the booking came from — the partner has to know who arrives and how the
+    row reached them. Amounts are float for the JSON layer, as elsewhere.
+    """
+
+    id: str
+    code: str
+    status: BookingStatus
+    total_amount: float
+    commission_rate: float
+    commission_amount: float
+    origin: Literal["web", "channel"]
+    source_channel: str | None = None
+    guest_name: str
+    guest_email: str
+    guest_phone: str
+    property_id: str
+    property_name: str
+    unit_type_id: str
+    unit_type_name: str
+    checkin_date: dt.date
+    checkout_date: dt.date
+    created_at: dt.datetime
+    lines: list[PartnerBookingLineOut] = []
 
 
 class HoldConflict(BaseModel):

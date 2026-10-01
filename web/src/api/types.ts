@@ -121,6 +121,32 @@ export interface BookingOut {
   lines: BookingLineOut[];
 }
 
+/**
+ * A booking as the partner sees it: the guest's contacts and the booking's
+ * origin, which the guest's own BookingOut deliberately omits.
+ */
+export interface PartnerBookingOut {
+  id: string;
+  code: string;
+  status: BookingStatus;
+  total_amount: number;
+  commission_rate: number;
+  commission_amount: number;
+  origin: "web" | "channel";
+  source_channel: string | null;
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  property_id: string;
+  property_name: string;
+  unit_type_id: string;
+  unit_type_name: string;
+  checkin_date: string; // ISO date
+  checkout_date: string; // ISO date
+  created_at: string; // ISO datetime
+  lines: BookingLineOut[];
+}
+
 export interface AvailabilityDay {
   date: string; // ISO date
   available: number;

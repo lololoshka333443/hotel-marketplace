@@ -17,6 +17,12 @@ export function PartnerLayout() {
           >
             Шахматка
           </Link>
+          <Link
+            to="/partner/bookings"
+            className="rounded-button px-3 py-2 text-text-secondary transition-colors duration-micro hover:bg-interactive-hover hover:text-text-primary focus-visible:shadow-focus-ring"
+          >
+            Бронирования
+          </Link>
         </div>
       </div>
       <Outlet />

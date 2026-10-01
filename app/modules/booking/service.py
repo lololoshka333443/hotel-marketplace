@@ -273,3 +273,37 @@ async def expire_holds(conn: asyncpg.Connection) -> int:
     if released:
         log.info("reaper-expired-holds", count=released)
     return released
+
+async def list_partner_bookings(
+    conn: asyncpg.Connection,
+    partner_id: str,
+    status: str | None = None,
+) -> list[asyncpg.Record]:
+    """Every booking on the partner's own inventory, newest first.
+
+    Scoped by a join on property, not by RLS: the route passes the partner's id
+    from the token, and the join is the same ownership check the partner's
+    other endpoints already make. A booking is included once even if the
+    partner owns several properties — there is one row per booking, and the
+    property name disambiguates which object it belongs to.
+    """
+    base = """
+        SELECT b.id::text, b.code, b.status, b.total_amount::float8,
+               b.commission_rate::float8, b.commission_amt::float8,
+               b.origin, b.source_channel,
+               b.guest_name, b.guest_email, b.guest_phone,
+               b.property_id::text, p.name AS property_name,
+               b.unit_type_id::text, ut.name AS unit_type_name,
+               b.checkin_date, b.checkout_date, b.created_at
+        FROM booking b
+        JOIN property p ON p.id = b.property_id
+        JOIN unit_type ut ON ut.id = b.unit_type_id
+        WHERE p.partner_id = $1
+    """
+    if status is None:
+        return await conn.fetch(base + " ORDER BY b.created_at DESC", partner_id)
+    return await conn.fetch(
+        base + " AND b.status = $2 ORDER BY b.created_at DESC",
+        partner_id,
+        status,
+    )

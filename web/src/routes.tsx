@@ -9,6 +9,8 @@ import { ComponentsPage } from "@/pages/ComponentsPage";
 import { PartnerLayout } from "@/pages/partner/PartnerLayout";
 import { PartnerDashboardPage } from "@/pages/partner/PartnerDashboardPage";
 import { PartnerCalendarPage } from "@/pages/partner/PartnerCalendarPage";
+import { PartnerBookingsPage } from "@/pages/partner/PartnerBookingsPage";
+
 import { AdminLayout } from "@/pages/admin/AdminLayout";
 import { AdminLoginPage } from "@/pages/admin/AdminLoginPage";
 import { AdminReportsPage } from "@/pages/admin/AdminReportsPage";
@@ -41,6 +43,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <PartnerDashboardPage /> },
           { path: "calendar", element: <PartnerCalendarPage /> },
+          { path: "bookings", element: <PartnerBookingsPage /> },
         ],
       },
       { path: "admin/login", element: <AdminLoginPage /> },

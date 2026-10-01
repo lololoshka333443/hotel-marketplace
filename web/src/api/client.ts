@@ -25,6 +25,7 @@ import type {
   AdminProperty,
   AdminPropertyStatus,
   HoldConflict,
+  PartnerBookingOut,
   HoldRequest,
   PropertyOut,
   PropertyPublic,
@@ -378,4 +379,12 @@ export const partner = {
         method: "DELETE",
       }),
   },
-};
+  bookings: {
+    list: (status: string | null, signal?: AbortSignal) => {
+      const tail = status ? `?status=${encodeURIComponent(status)}` : "";
+      return request<PartnerBookingOut[]>(`/bookings/partner/list${tail}`, {
+        signal,
+      });
+    },
+  },
+ };

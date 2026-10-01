@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.db.pool import get_pool
+from app.modules.auth.deps import require_scope
+from app.modules.auth.jwt import TokenData
 from app.modules.booking import service
-from app.modules.booking.schemas import HoldRequest
+from app.modules.booking.schemas import HoldRequest, PartnerBookingLineOut, PartnerBookingOut
 
 router = APIRouter(prefix="/v1/bookings", tags=["booking"])
 
@@ -17,6 +19,53 @@ def _line_dates(conn, booking_id: str):
         booking_id,
     )
 
+
+@router.get("/partner/list", response_model=list[PartnerBookingOut])
+async def list_partner_bookings(
+    booking_status: Annotated[str | None, Query(alias="status")] = None,
+    token: TokenData = Depends(require_scope("partner")),
+) -> list[PartnerBookingOut]:
+    """Every booking on the partner's own inventory, newest first.
+
+    The partner sees who is arriving and how the booking reached them — guest
+    contacts, the booking channel, and the commission the platform takes. A
+    guest looking up the same code through /by-code/{code} sees none of this.
+    """
+    pool = get_pool()
+    conn = await pool.acquire()
+    try:
+        rows = await service.list_partner_bookings(conn, token.sub, booking_status)
+        out: list[PartnerBookingOut] = []
+        for r in rows:
+            lines = await _line_dates(conn, r["id"])
+            out.append(
+                PartnerBookingOut(
+                    id=r["id"],
+                    code=r["code"],
+                    status=r["status"],
+                    total_amount=r["total_amount"],
+                    commission_rate=r["commission_rate"],
+                    commission_amount=r["commission_amt"],
+                    origin=r["origin"],
+                    source_channel=r["source_channel"],
+                    guest_name=r["guest_name"],
+                    guest_email=r["guest_email"],
+                    guest_phone=r["guest_phone"],
+                    property_id=r["property_id"],
+                    property_name=r["property_name"],
+                    unit_type_id=r["unit_type_id"],
+                    unit_type_name=r["unit_type_name"],
+                    checkin_date=r["checkin_date"],
+                    checkout_date=r["checkout_date"],
+                    created_at=r["created_at"],
+                    lines=[
+                        PartnerBookingLineOut(date=ln["date"], price=ln["price"]) for ln in lines
+                    ],
+                )
+            )
+        return out
+    finally:
+        await pool.release(conn)
 
 @router.post("/hold", status_code=status.HTTP_201_CREATED)
 async def create_hold(
