@@ -57,36 +57,28 @@ def media_tmp(tmp_path_factory) -> Iterator:
 
 
 @pytest.fixture(scope="module")
-async def world(media_tmp) -> AsyncIterator[dict]:
+async def world(media_tmp, _test_db) -> AsyncIterator[dict]:
     """Two partners, one property each, and tokens for both."""
     pool = await asyncpg.create_pool(dsn=settings.test_dsn, min_size=1, max_size=5)
     conn = await pool.acquire()
     try:
         partner_a = await auth_service.register_partner(
             conn,
-            PartnerRegisterRequest(
-                email="photo-a@example.com", password="secret123", name="Alpha"
-            ),
+            PartnerRegisterRequest(email="photo-a@example.com", password="secret123", name="Alpha"),
         )
         partner_b = await auth_service.register_partner(
             conn,
-            PartnerRegisterRequest(
-                email="photo-b@example.com", password="secret123", name="Bravo"
-            ),
+            PartnerRegisterRequest(email="photo-b@example.com", password="secret123", name="Bravo"),
         )
         prop_a = await property_service.create_property(
             conn,
             partner_a,
-            PropertyCreate(
-                name="Дом у моря", property_type="house", timezone="Europe/Simferopol"
-            ),
+            PropertyCreate(name="Дом у моря", property_type="house", timezone="Europe/Simferopol"),
         )
         prop_b = await property_service.create_property(
             conn,
             partner_b,
-            PropertyCreate(
-                name="Чужой дом", property_type="house", timezone="Europe/Simferopol"
-            ),
+            PropertyCreate(name="Чужой дом", property_type="house", timezone="Europe/Simferopol"),
         )
         # The catalog only renders published properties.
         await property_service.update_property(
@@ -147,7 +139,10 @@ def test_upload_returns_list_and_writes_webp(client: TestClient, world: dict, me
     assert photo["thumb"].endswith(".thumb.webp")
 
     # Both files exist and are real WebPs at the capped sizes.
-    for key, max_edge in (("full", settings.photo_max_dimension), ("thumb", settings.photo_thumb_width)):
+    for key, max_edge in (
+        ("full", settings.photo_max_dimension),
+        ("thumb", settings.photo_thumb_width),
+    ):
         path = _local(media_tmp, photo[key])
         assert path.is_file(), path
         with Image.open(path) as img:
@@ -325,7 +320,7 @@ def test_unauthenticated_is_401(client: TestClient, world: dict) -> None:
     assert resp.status_code in (401, 403), resp.text
 
 
-async def test_jsonb_shape_matches_service(client: TestClient, world: dict) -> None:
+async def test_jsonb_shape_matches_service(client: TestClient, world: dict, _test_db) -> None:
     """The stored jsonb is the shape the catalog payload documents."""
     conn = await asyncpg.connect(dsn=settings.test_dsn)
     try:

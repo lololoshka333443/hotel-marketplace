@@ -271,6 +271,7 @@ async def test_booking_by_code_unknown_is_404(committed_conn) -> None:
 
     assert response.status_code == 404, response.text
 
+
 # ---------------------------------------------------------------- reaper
 
 
@@ -301,7 +302,7 @@ async def test_reaper_expires_stale_hold(db_conn) -> None:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_holds_single_room() -> None:
+async def test_concurrent_holds_single_room(_test_db) -> None:
     """20 parallel requests for the same single room -> exactly one success.
 
     Uses its own pool (committed seed) because the racing connections must all

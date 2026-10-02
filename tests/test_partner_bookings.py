@@ -95,7 +95,9 @@ def _auth_header(partner_id: str) -> dict[str, str]:
 async def test_partner_sees_own_bookings(committed_conn) -> None:
     """A confirmed booking on the partner's inventory shows up with contacts."""
     mine = await _seed(committed_conn, "pb-own@example.com")
-    booking_id = await _confirmed(committed_conn, mine["unit_type_id"], TODAY + dt.timedelta(days=10))
+    booking_id = await _confirmed(
+        committed_conn, mine["unit_type_id"], TODAY + dt.timedelta(days=10)
+    )
 
     with TestClient(create_app()) as client:
         response = client.get("/v1/bookings/partner/list", headers=_auth_header(mine["partner_id"]))
@@ -146,7 +148,9 @@ async def test_holds_and_confirmed_both_show(committed_conn) -> None:
     before the money lands, not after.
     """
     mine = await _seed(committed_conn, "pb-hold@example.com")
-    confirmed = await _confirmed(committed_conn, mine["unit_type_id"], TODAY + dt.timedelta(days=20))
+    confirmed = await _confirmed(
+        committed_conn, mine["unit_type_id"], TODAY + dt.timedelta(days=20)
+    )
     held = await _hold(committed_conn, mine["unit_type_id"], TODAY + dt.timedelta(days=25))
 
     with TestClient(create_app()) as client:

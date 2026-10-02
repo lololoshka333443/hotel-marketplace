@@ -67,6 +67,7 @@ async def list_partner_bookings(
     finally:
         await pool.release(conn)
 
+
 @router.post("/hold", status_code=status.HTTP_201_CREATED)
 async def create_hold(
     data: HoldRequest,
@@ -118,7 +119,6 @@ async def create_hold(
         await pool.release(conn)
 
 
-
 @router.get("/by-code/{code}")
 async def get_booking_by_code(code: str) -> dict:
     """Guest-facing lookup: the traveller knows the BK-XXXXXX code, never the id.
@@ -137,9 +137,7 @@ async def get_booking_by_code(code: str) -> dict:
             code,
         )
         if row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="booking not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="booking not found")
         lines = await _line_dates(conn, row["id"])
         return {
             "id": row["id"],
@@ -151,9 +149,7 @@ async def get_booking_by_code(code: str) -> dict:
             else None,
             "checkin_date": row["checkin_date"].isoformat(),
             "checkout_date": row["checkout_date"].isoformat(),
-            "lines": [
-                {"date": ln["date"].isoformat(), "price": ln["price"]} for ln in lines
-            ],
+            "lines": [{"date": ln["date"].isoformat(), "price": ln["price"]} for ln in lines],
         }
     finally:
         await get_pool().release(conn)

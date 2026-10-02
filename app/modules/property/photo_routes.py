@@ -42,8 +42,7 @@ async def _read_capped(upload: UploadFile) -> bytes:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=(
-                    f"photo too large: the limit is "
-                    f"{settings.photo_max_bytes // (1024 * 1024)} MB"
+                    f"photo too large: the limit is {settings.photo_max_bytes // (1024 * 1024)} MB"
                 ),
             )
         chunks.append(chunk)

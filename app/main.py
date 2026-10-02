@@ -120,6 +120,12 @@ def create_app() -> FastAPI:
     app.include_router(sync_router)
     app.include_router(channel_router)
     app.include_router(outbox_router)
+    # A malformed uuid in a path (`/v1/properties/not-a-uuid`) is a missing
+    # resource, not a server fault — Postgres rejects the value before the
+    # query runs, so it never reaches the "no such row" branch.
+    from app.utils.uuid_http import install_uuid_handler
+
+    install_uuid_handler(app)
 
     # ---- single-app: serve the built frontend from one origin -------------
     # Static assets first (exact paths), then the SPA fallback so any deep

@@ -274,6 +274,7 @@ async def expire_holds(conn: asyncpg.Connection) -> int:
         log.info("reaper-expired-holds", count=released)
     return released
 
+
 async def list_partner_bookings(
     conn: asyncpg.Connection,
     partner_id: str,

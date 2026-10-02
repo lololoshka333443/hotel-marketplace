@@ -22,9 +22,7 @@ def _test_sibling(database_url: str) -> str:
     """
     split = urllib.parse.urlsplit(database_url)
     if not split.path or split.path == "/":
-        raise ValueError(
-            "DATABASE_URL has no database name — cannot derive a test database"
-        )
+        raise ValueError("DATABASE_URL has no database name — cannot derive a test database")
     return urllib.parse.urlunsplit(split._replace(path=f"{split.path}_test"))
 
 

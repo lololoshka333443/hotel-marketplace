@@ -88,9 +88,7 @@ def _to_photos(raw) -> list[Photo]:
     ]
 
 
-async def _property_owned(
-    conn: asyncpg.Connection, property_id: str, partner_id: str
-) -> bool:
+async def _property_owned(conn: asyncpg.Connection, property_id: str, partner_id: str) -> bool:
     """Cheap ownership probe — a photo route answers 404 for a foreign id."""
     return bool(
         await conn.fetchval(

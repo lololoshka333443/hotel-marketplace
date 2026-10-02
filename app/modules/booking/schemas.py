@@ -37,6 +37,7 @@ class BookingOut(BaseModel):
     checkin_date: dt.date
     checkout_date: dt.date
 
+
 class PartnerBookingLineOut(BaseModel):
     """One night of a booking, as the partner sees the price split."""
 
