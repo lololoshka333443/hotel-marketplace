@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from app.db.pool import get_pool
 from app.modules.auth.deps import require_scope
@@ -72,12 +73,34 @@ async def update_my_property(
         await get_pool().release(conn)
 
 
-@router.get("/properties", response_model=list[dict])
-async def list_public_properties(city: str | None = None) -> list[dict]:
-    """Public catalog — only published properties, no partner-internal fields."""
+class PropertyPage(BaseModel):
+    """One page of the catalog: the items plus what the UI needs to page."""
+
+    items: list[dict]
+    total: int
+    limit: int
+    offset: int
+
+
+@router.get("/properties", response_model=PropertyPage)
+async def list_public_properties(
+    city: str | None = None,
+    guests: int | None = None,
+    q: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 24,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PropertyPage:
+    """Public catalog — only published properties, no partner-internal fields.
+
+    `guests` keeps a property that has any room type sleeping that many.
+    `q` matches name or city. Page by limit/offset; the total comes back so
+    the UI shows how many results the filters left.
+    """
     conn = await get_pool().acquire()
     try:
-        return await service.list_public_properties(conn, city)
+        return PropertyPage(
+            **await service.list_public_properties(conn, city, guests, q, limit, offset)
+        )
     finally:
         await get_pool().release(conn)
 
@@ -111,8 +134,8 @@ async def list_public_unit_types(property_id: str) -> list[UnitTypeOut]:
         if not published:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="property not found")
         rows = await conn.fetch(
-            "SELECT id::text, property_id::text, name, capacity, total_units "
-            "FROM unit_type WHERE property_id = $1 ORDER BY created_at",
+            "SELECT id::text, property_id::text, name, capacity, total_units, "
+            "base_price::float8 FROM unit_type WHERE property_id = $1 ORDER BY created_at",
             property_id,
         )
         return [UnitTypeOut(**dict(r)) for r in rows]

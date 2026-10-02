@@ -5,11 +5,16 @@ import { useState } from "react";
 import { catalog } from "@/api/client";
 import { BookingPanel } from "@/components/BookingPanel";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { formatPrice, formatPriceFrom } from "@/utils/format";
 
 export function PropertyPage() {
   const { id } = useParams();
 
-  const { data: property, isPending, isError } = useQuery({
+  const {
+    data: property,
+    isPending,
+    isError,
+  } = useQuery({
     queryKey: ["property", id],
     queryFn: ({ signal }) => catalog.get(id as string, signal),
     enabled: Boolean(id),
@@ -26,7 +31,8 @@ export function PropertyPage() {
 
   // Guests book a unit type; default to the first, switch via the selector.
   const [unitId, setUnitId] = useState<string | null>(null);
-  const selectedUnit = unitTypes?.find((u) => u.id === unitId) ?? unitTypes?.[0];
+  const selectedUnit =
+    unitTypes?.find((u) => u.id === unitId) ?? unitTypes?.[0];
 
   if (isPending) {
     return (
@@ -87,6 +93,11 @@ export function PropertyPage() {
               {property.city} · заезд {property.checkin_time} · выезд{" "}
               {property.checkout_time}
             </p>
+            {property.min_price ? (
+              <p className="mt-4 font-medium">
+                {formatPriceFrom(property.min_price, property.currency)}
+              </p>
+            ) : null}
           </div>
 
           <section className="mt-12">
@@ -103,11 +114,20 @@ export function PropertyPage() {
                     key={unit.id}
                     className="flex items-center justify-between py-5"
                   >
-                    <div>
-                      <p className="font-medium">{unit.name}</p>
-                      <p className="mt-1 text-sm text-text-secondary">
-                        до {unit.capacity} человек · {unit.total_units} в наличии
-                      </p>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <div>
+                        <p className="font-medium">{unit.name}</p>
+                        <p className="mt-1 text-sm text-text-secondary">
+                          до {unit.capacity} человек · {unit.total_units} в
+                          наличии
+                        </p>
+                      </div>
+                      {unit.base_price ? (
+                        <p className="shrink-0 font-medium">
+                          {formatPrice(unit.base_price, property.currency)} за
+                          ночь
+                        </p>
+                      ) : null}
                     </div>
                   </li>
                 ))}

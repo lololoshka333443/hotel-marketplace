@@ -13,7 +13,8 @@
  */
 
 export type PropertyType = "hotel" | "apartment" | "house" | "room" | "hostel";
-export type PropertyStatus = "draft" | "pending_moderation" | "published" | "blocked";
+export type PropertyStatus =
+  "draft" | "pending_moderation" | "published" | "blocked";
 export type BookingStatus =
   | "hold"
   | "paid"
@@ -57,6 +58,9 @@ export interface PropertyPublic {
   /** Property photos — the first is the catalog cover. Empty until the partner
    * uploads some (`POST /v1/partner/properties/{id}/photos`). */
   photos?: Photo[];
+  /** Cheapest night across the property's room types. Null when the property
+   * has no rooms yet — published but not yet bookable. */
+  min_price?: number | null;
 }
 
 /** One property photo: `full` is the sized-down original, `thumb` the card view. */
@@ -64,6 +68,14 @@ export interface Photo {
   id: string;
   full: string;
   thumb: string;
+}
+
+/** One page of the catalog: the items plus what the UI needs to page. */
+export interface PropertyPage {
+  items: PropertyPublic[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface PropertyOut extends PropertyPublic {
@@ -90,7 +102,6 @@ export interface RatePlan {
   cancellation_policy: string;
   active: boolean;
 }
-
 
 export interface GuestInfo {
   name: string;
@@ -293,12 +304,7 @@ export interface ReconciliationRow {
 }
 
 export type ReconciliationDeliveryStatus =
-  | "delivered"
-  | "queued"
-  | "failed"
-  | "undelivered"
-  | "partial"
-  | "no_listener";
+  "delivered" | "queued" | "failed" | "undelivered" | "partial" | "no_listener";
 
 export interface ReconciliationReport {
   date_from: string | null;
@@ -337,10 +343,7 @@ export interface ApiError {
 // ---- admin ----------------------------------------------------------------
 
 export type AdminPropertyStatus =
-  | "draft"
-  | "pending_moderation"
-  | "published"
-  | "blocked";
+  "draft" | "pending_moderation" | "published" | "blocked";
 
 export interface AdminProperty {
   id: string;

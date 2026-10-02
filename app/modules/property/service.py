@@ -125,11 +125,14 @@ async def get_public_property(conn: asyncpg.Connection, property_id: str) -> dic
     """Public catalog read: published only, no partner-internal fields."""
     row = await conn.fetchrow(
         """
-        SELECT id::text, name, slug, property_type, city, timezone,
-               checkin_time, checkout_time, currency,
-               lat::float8, lng::float8, address::jsonb, photos::jsonb
-        FROM property
-        WHERE id = $1 AND status = 'published'
+        SELECT p.id::text, p.name, p.slug, p.property_type, p.city, p.timezone,
+               p.checkin_time, p.checkout_time, p.currency,
+               p.lat::float8, p.lng::float8, p.address::jsonb, p.photos::jsonb,
+               (SELECT min(ut.base_price)::float8
+                  FROM unit_type ut
+                 WHERE ut.property_id = p.id) AS min_price
+        FROM property p
+        WHERE p.id = $1 AND p.status = 'published'
         """,
         property_id,
     )
@@ -138,24 +141,67 @@ async def get_public_property(conn: asyncpg.Connection, property_id: str) -> dic
     return dict(row, address=_jsonb(row["address"]), photos=_jsonb(row["photos"]))
 
 
-async def list_public_properties(conn: asyncpg.Connection, city: str | None = None) -> list[dict]:
+async def list_public_properties(
+    conn: asyncpg.Connection,
+    city: str | None = None,
+    guests: int | None = None,
+    q: str | None = None,
+    limit: int = 24,
+    offset: int = 0,
+) -> dict:
+    """Published catalog with the filters a guest actually narrows on.
+
+    `guests` keeps a property that has *any* room type sleeping that many — a
+    hotel is not excluded because its cheapest room is a single. Properties
+    without room types never match, which is right: they are not bookable yet.
+    `q` matches the name or the city, the two things the search pill offered.
+    Returns a page plus the total, so the UI can page without fetching all.
+    """
     args: list = []
-    where = "status = 'published'"
+    where = "p.status = 'published'"
     if city:
         args.append(city)
-        where += " AND city = $1"
+        where += f" AND p.city = ${len(args)}"
+    if guests:
+        args.append(guests)
+        where += (
+            f" AND EXISTS (SELECT 1 FROM unit_type ut"
+            f" WHERE ut.property_id = p.id AND ut.capacity >= ${len(args)})"
+        )
+    if q:
+        args.append(f"%{q}%")
+        where += f" AND (p.name ILIKE ${len(args)} OR p.city ILIKE ${len(args)})"
+
+    total = await conn.fetchval(
+        f"SELECT count(*) FROM property p WHERE {where}",
+        *args,
+    )
+
+    args.append(limit)
+    args.append(offset)
     rows = await conn.fetch(
         f"""
-        SELECT id::text, name, slug, property_type, city, timezone,
-               checkin_time, checkout_time, currency,
-               lat::float8, lng::float8, address::jsonb, photos::jsonb
-        FROM property
+        SELECT p.id::text, p.name, p.slug, p.property_type, p.city, p.timezone,
+               p.checkin_time, p.checkout_time, p.currency,
+               p.lat::float8, p.lng::float8, p.address::jsonb, p.photos::jsonb,
+               (SELECT min(ut.base_price)::float8
+                  FROM unit_type ut
+                 WHERE ut.property_id = p.id) AS min_price
+        FROM property p
         WHERE {where}
-        ORDER BY created_at DESC
+        ORDER BY p.created_at DESC
+        LIMIT ${len(args) - 1} OFFSET ${len(args)}
         """,
         *args,
     )
-    return [dict(r, address=_jsonb(r["address"]), photos=_jsonb(r["photos"])) for r in rows]
+    out = []
+    for r in rows:
+        row = dict(r, address=_jsonb(r["address"]), photos=_jsonb(r["photos"]))
+        # No room types yet: the property is published but unbookable, and
+        # min_price None is exactly that — the UI says "цена не указана".
+        row["min_price"] = r["min_price"]
+        out.append(row)
+    return {"items": out, "total": total, "limit": limit, "offset": offset}
 
 
 async def update_property(
@@ -206,3 +252,35 @@ def _row_to_out(row: asyncpg.Record) -> PropertyOut:
         address=_jsonb(row["address"]),
         created_at=row["created_at"],
     )
+
+
+async def list_public_unit_types(conn: asyncpg.Connection, property_id: str) -> list[dict]:
+    """The guest's room list for one published property, cheapest price included.
+
+    A rate plan overrides base_price when it has rows for the date; see
+    rate.get_effective_price for the same fallback in the availability path.
+    The price shown is the cheapest night across the next 30 days, so a guest
+    browsing the catalog sees what the stay actually costs instead of reaching
+    the checkout to find out.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT ut.id::text, ut.property_id::text, ut.name, ut.capacity,
+               ut.total_units,
+               COALESCE(
+                 (SELECT min(pd.price)::float8
+                  FROM price_day pd
+                  JOIN rate_plan rp ON rp.id = pd.rate_plan_id
+                  WHERE rp.unit_type_id = ut.id AND rp.active
+                    AND pd.date >= current_date
+                    AND pd.date < current_date + interval '30 days'
+                    AND pd.stop_sell = false),
+                 ut.base_price::float8
+               ) AS price
+        FROM unit_type ut
+        WHERE ut.property_id = $1
+        ORDER BY ut.created_at
+        """,
+        property_id,
+    )
+    return [dict(r) for r in rows]

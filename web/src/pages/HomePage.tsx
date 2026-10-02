@@ -3,15 +3,17 @@ import { Link } from "react-router-dom";
 
 import { catalog } from "@/api/client";
 import { Button } from "@/components/ui/Button";
+import { formatPriceFrom } from "@/utils/format";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function HomePage() {
   useDocumentTitle();
-  const { data: properties, isPending, isError } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: ["properties"],
-    queryFn: ({ signal }) => catalog.list(undefined, signal),
+    queryFn: ({ signal }) =>
+      catalog.list(undefined, undefined, undefined, 6, 0, signal),
   });
-
+  const properties = data?.items ?? [];
   return (
     <div>
       {/* hero — paper, not a SaaS gradient. An eyebrow, one serif headline, a
@@ -44,7 +46,9 @@ export function HomePage() {
       {/* catalog — data from the API, never hardcoded */}
       <section className="mx-auto max-w-[1120px] px-4 py-24 sm:px-6 lg:px-8">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-serif text-3xl font-normal tracking-tight">Объекты</h2>
+          <h2 className="font-serif text-3xl font-normal tracking-tight">
+            Объекты
+          </h2>
           <p className="text-sm text-text-tertiary">
             {properties?.length ?? 0} в каталоге
           </p>
@@ -101,7 +105,14 @@ export function HomePage() {
                   <h3 className="mt-2 font-serif text-xl font-normal leading-tight text-text-primary">
                     {property.name}
                   </h3>
-                  <p className="mt-2 text-text-secondary">{property.city || "Крым"}</p>
+                  <p className="mt-2 text-text-secondary">
+                    {property.city || "Крым"}
+                  </p>
+                  <p className="mt-2 text-text-secondary">
+                    {property.min_price
+                      ? formatPriceFrom(property.min_price, property.currency)
+                      : "Цена не указана"}
+                  </p>
                   <Link
                     to={`/property/${property.id}`}
                     className="mt-6 inline-flex w-fit items-center text-sm font-medium text-text-primary underline-offset-[3px] transition-colors duration-micro hover:underline"

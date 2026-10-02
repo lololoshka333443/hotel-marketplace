@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
 import { partner } from "@/api/client";
+import type { UnitTypeOut } from "@/api/types";
 import { humanError } from "@/utils/errors";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -25,7 +26,9 @@ export function UnitTypeManager({ propertyId }: { propertyId: string }) {
   const list = unitTypes ?? [];
 
   function refresh() {
-    void queryClient.invalidateQueries({ queryKey: ["unit-types", propertyId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["unit-types", propertyId],
+    });
     // The chessboard renders one row per unit type, so it follows along.
     void queryClient.invalidateQueries({ queryKey: ["calendar", propertyId] });
   }
@@ -60,7 +63,7 @@ export function UnitTypeManager({ propertyId }: { propertyId: string }) {
           {list.map((unit) => (
             <li
               key={unit.id}
-              className="flex items-center justify-between py-4"
+              className="flex items-center justify-between gap-4 py-4"
             >
               <div>
                 <p className="font-medium">{unit.name}</p>
@@ -69,11 +72,11 @@ export function UnitTypeManager({ propertyId }: { propertyId: string }) {
                   {plural(unit.total_units, "номер", "номера", "номеров")}
                 </p>
               </div>
+              <UnitTypePrice unit={unit} onSaved={refresh} />
             </li>
           ))}
         </ul>
       )}
-
       <CreateUnitTypeModal
         propertyId={propertyId}
         open={open}
@@ -81,6 +84,87 @@ export function UnitTypeManager({ propertyId }: { propertyId: string }) {
         onCreated={refresh}
       />
     </section>
+  );
+}
+
+/**
+ * The room's price, editable in place. base_price is the fallback every day
+ * without a rate row reads, so saving here reprices the season the partner
+ * never opened in RateManager. Click turns the number into a field; Enter or
+ * blur saves, Esc puts it back.
+ */
+function UnitTypePrice({
+  unit,
+  onSaved,
+}: {
+  unit: UnitTypeOut;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(unit.base_price ?? 0);
+
+  const save = useMutation({
+    mutationFn: () => partner.updateUnitType(unit.id, { base_price: draft }),
+    onSuccess: () => {
+      setEditing(false);
+      onSaved();
+    },
+  });
+
+  function commit() {
+    if (draft === unit.base_price) {
+      setEditing(false);
+      return;
+    }
+    save.mutate();
+  }
+
+  if (editing) {
+    return (
+      <form
+        className="flex shrink-0 items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          commit();
+        }}
+      >
+        <Input
+          type="number"
+          min={0}
+          max={1000000}
+          value={draft}
+          onChange={(e) => setDraft(Number(e.target.value) || 0)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setDraft(unit.base_price ?? 0);
+              setEditing(false);
+            }
+          }}
+          className="w-28"
+          aria-label={`Цена за ночь, ${unit.name}`}
+        />
+        <span className="text-sm text-text-secondary">₽</span>
+        {save.isError ? (
+          <p role="alert" className="text-sm text-feedback-error-text">
+            {humanError(save.error, "Не удалось сохранить цену.")}
+          </p>
+        ) : null}
+      </form>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(unit.base_price ?? 0);
+        setEditing(true);
+      }}
+      className="shrink-0 text-sm font-medium text-text-primary underline-offset-[3px] transition-colors duration-micro hover:underline"
+    >
+      {unit.base_price ? `${unit.base_price} ₽ за ночь` : "Цена не задана"}
+    </button>
   );
 }
 
@@ -98,6 +182,7 @@ function CreateUnitTypeModal({
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState(2);
   const [totalUnits, setTotalUnits] = useState(1);
+  const [basePrice, setBasePrice] = useState(0);
 
   const create = useMutation({
     mutationFn: () =>
@@ -106,11 +191,13 @@ function CreateUnitTypeModal({
         name,
         capacity,
         total_units: totalUnits,
+        base_price: basePrice,
       }),
     onSuccess: () => {
       setName("");
       setCapacity(2);
       setTotalUnits(1);
+      setBasePrice(0);
       onCreated();
       onClose();
     },
@@ -161,6 +248,15 @@ function CreateUnitTypeModal({
             required
           />
         </div>
+        <Input
+          label="Базовая цена за ночь, ₽"
+          type="number"
+          min={0}
+          max={1000000}
+          value={basePrice}
+          onChange={(e) => setBasePrice(Number(e.target.value) || 0)}
+          required
+        />
         {create.isError ? (
           <p role="alert" className="text-sm text-feedback-error-text">
             {humanError(

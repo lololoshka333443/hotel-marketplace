@@ -29,6 +29,7 @@ import type {
   HoldRequest,
   PropertyOut,
   PropertyPublic,
+  PropertyPage,
   PropertyType,
   Photo,
   TokenResponse,
@@ -135,9 +136,23 @@ export const auth = {
 // ---- public catalog -------------------------------------------------------
 
 export const catalog = {
-  list: (city?: string, signal?: AbortSignal) => {
-    const qs = city ? `?city=${encodeURIComponent(city)}` : "";
-    return request<PropertyPublic[]>(`/properties${qs}`, { signal });
+  list: (
+    city?: string,
+    guests?: number,
+    q?: string,
+    limit = 24,
+    offset = 0,
+    signal?: AbortSignal,
+  ) => {
+    const params = new URLSearchParams();
+    if (city) params.set("city", city);
+    if (guests) params.set("guests", String(guests));
+    if (q) params.set("q", q);
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    return request<PropertyPage>(`/properties?${params.toString()}`, {
+      signal,
+    });
   },
   get: (id: string, signal?: AbortSignal) =>
     request<PropertyPublic>(`/properties/${id}`, { signal }),
@@ -149,7 +164,12 @@ export const catalog = {
 };
 
 export const availability = {
-  get: (unitTypeId: string, dateFrom: string, dateTo: string, signal?: AbortSignal) =>
+  get: (
+    unitTypeId: string,
+    dateFrom: string,
+    dateTo: string,
+    signal?: AbortSignal,
+  ) =>
     request<AvailabilityResponse>(
       `/availability?unit_type_id=${encodeURIComponent(
         unitTypeId,
@@ -165,7 +185,9 @@ export const bookings = {
     request<BookingOut>("/bookings/hold", {
       method: "POST",
       body: payload,
-      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+      headers: idempotencyKey
+        ? { "Idempotency-Key": idempotencyKey }
+        : undefined,
     }),
   get: (id: string, signal?: AbortSignal) =>
     request<BookingOut>(`/bookings/${id}`, { signal }),
@@ -201,10 +223,7 @@ export const admin = {
   },
   properties: (status: string | null, signal?: AbortSignal) => {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-    return request<AdminProperty[]>(
-      `/admin/properties${qs}`,
-      { signal },
-    );
+    return request<AdminProperty[]>(`/admin/properties${qs}`, { signal });
   },
   setStatus: (propertyId: string, status: AdminPropertyStatus) =>
     request<AdminProperty>(`/admin/properties/${propertyId}/status`, {
@@ -246,35 +265,38 @@ export const partner = {
     name: string;
     property_type: PropertyType;
     city?: string;
-  }) =>
-    request<PropertyOut>("/partner/properties", { method: "POST", body }),
+  }) => request<PropertyOut>("/partner/properties", { method: "POST", body }),
   photos: {
     list: (propertyId: string, signal?: AbortSignal) =>
-      request<Photo[]>(
-        `/partner/properties/${propertyId}/photos`,
-        { signal },
-      ),
+      request<Photo[]>(`/partner/properties/${propertyId}/photos`, { signal }),
     upload: (propertyId: string, file: File) => {
       const body = new FormData();
       body.append("file", file);
-      return request<Photo[]>(
-        `/partner/properties/${propertyId}/photos`,
-        { method: "POST", body },
-      );
+      return request<Photo[]>(`/partner/properties/${propertyId}/photos`, {
+        method: "POST",
+        body,
+      });
     },
     remove: (propertyId: string, photoId: string) =>
-      request<Photo[]>(
-        `/partner/properties/${propertyId}/photos/${photoId}`,
-        { method: "DELETE" },
-      ),
+      request<Photo[]>(`/partner/properties/${propertyId}/photos/${photoId}`, {
+        method: "DELETE",
+      }),
   },
   createUnitType: (body: {
     property_id: string;
     name: string;
     capacity: number;
     total_units: number;
-  }) =>
-    request<UnitTypeOut>("/partner/unit-types", { method: "POST", body }),
+    base_price: number;
+  }) => request<UnitTypeOut>("/partner/unit-types", { method: "POST", body }),
+  updateUnitType: (
+    unitTypeId: string,
+    body: { name?: string; capacity?: number; base_price?: number },
+  ) =>
+    request<UnitTypeOut>(`/partner/unit-types/${unitTypeId}`, {
+      method: "PATCH",
+      body,
+    }),
   ratePlans: {
     list: (unitTypeId: string, signal?: AbortSignal) =>
       request<RatePlan[]>(
@@ -285,8 +307,7 @@ export const partner = {
       unit_type_id: string;
       name: string;
       cancellation_policy: string;
-    }) =>
-      request<RatePlan>("/partner/rate-plans", { method: "POST", body }),
+    }) => request<RatePlan>("/partner/rate-plans", { method: "POST", body }),
   },
   prices: {
     set: (body: {
@@ -295,7 +316,8 @@ export const partner = {
       date_to: string;
       price: number;
       min_stay: number;
-    }) => request<{ status: string }>("/partner/prices", { method: "POST", body }),
+    }) =>
+      request<{ status: string }>("/partner/prices", { method: "POST", body }),
   },
   inventory: {
     close: (body: {
@@ -321,15 +343,13 @@ export const partner = {
     ),
   icalFeed: {
     get: (unitTypeId: string, signal?: AbortSignal) =>
-      request<IcalFeed>(
-        `/partner/unit-types/${unitTypeId}/ical-feed`,
-        { signal },
-      ),
+      request<IcalFeed>(`/partner/unit-types/${unitTypeId}/ical-feed`, {
+        signal,
+      }),
     rotate: (unitTypeId: string) =>
-      request<IcalFeed>(
-        `/partner/unit-types/${unitTypeId}/ical-feed`,
-        { method: "POST" },
-      ),
+      request<IcalFeed>(`/partner/unit-types/${unitTypeId}/ical-feed`, {
+        method: "POST",
+      }),
   },
   icalImport: {
     get: (unitTypeId: string, signal?: AbortSignal) =>
@@ -387,4 +407,4 @@ export const partner = {
       });
     },
   },
- };
+};
