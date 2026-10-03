@@ -40,6 +40,7 @@ class UnitTypeOut(BaseModel):
     capacity: int
     total_units: int
     base_price: float | None = None
+    cancellation_policy: str | None = None
 
 
 async def _get_owned(conn: asyncpg.Connection, unit_type_id: str, partner_id: str) -> str:

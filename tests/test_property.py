@@ -163,6 +163,66 @@ async def test_public_unit_types_listed_for_published_property(db_conn) -> None:
     assert rows[0]["total_units"] == 3
 
 
+@pytest.mark.asyncio
+async def test_public_room_carries_its_cancellation_policy(db_conn) -> None:
+    """A guest paying needs the room's cancellation terms next to its price.
+
+    The room's active rate plan is the only source of terms; without one the
+    field is null and the UI says so instead of inventing 'flexible'.
+    """
+    from app.modules.rate import service as rate_service
+
+    partner_id = await _make_partner(db_conn, "policy-1@example.com")
+    created = await service.create_property(db_conn, partner_id, _sample())
+    await service.update_property(
+        db_conn, created.id, partner_id, PropertyUpdate(status="published")
+    )
+    ut_id = await db_conn.fetchval(
+        "INSERT INTO unit_type (property_id, name, capacity, total_units, base_price) "
+        "VALUES ($1, 'Стандарт', 2, 1, 4000) RETURNING id::text",
+        created.id,
+    )
+
+    rooms = await service.list_public_unit_types(db_conn, created.id)
+    assert rooms[0]["cancellation_policy"] is None
+
+    await rate_service.create_rate_plan(
+        db_conn, ut_id, "Невозвратный", cancellation_policy="strict"
+    )
+
+    rooms = await service.list_public_unit_types(db_conn, created.id)
+    assert rooms[0]["cancellation_policy"] == "strict"
+
+
+async def test_public_route_exposes_the_policy(committed_conn) -> None:
+    """The HTTP route answers the same policy the service computes."""
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+    from app.modules.rate import service as rate_service
+
+    partner_id = await _make_partner(committed_conn, "policy-2@example.com")
+    created = await service.create_property(committed_conn, partner_id, _sample())
+    await service.update_property(
+        committed_conn, created.id, partner_id, PropertyUpdate(status="published")
+    )
+    ut_id = await committed_conn.fetchval(
+        "INSERT INTO unit_type (property_id, name, capacity, total_units, base_price) "
+        "VALUES ($1, 'Стандарт', 2, 1, 4000) RETURNING id::text",
+        created.id,
+    )
+    await rate_service.create_rate_plan(
+        committed_conn, ut_id, "Модерат", cancellation_policy="moderate"
+    )
+
+    # committed_conn is autocommit, so the app pool sees these rows.
+    with TestClient(create_app()) as client:
+        resp = client.get(f"/v1/public/unit-types/{created.id}")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()[0]["cancellation_policy"] == "moderate"
+
+
 # ---------------------------------------------------------------- publish route
 
 

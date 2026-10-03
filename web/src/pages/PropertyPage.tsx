@@ -7,6 +7,7 @@ import { BookingPanel } from "@/components/BookingPanel";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatPrice, formatPriceFrom } from "@/utils/format";
+import { policyLabel } from "@/utils/policy";
 
 export function PropertyPage() {
   const { id } = useParams();
@@ -159,6 +160,9 @@ export function PropertyPage() {
                         <p className="mt-1 text-sm text-text-secondary">
                           до {unit.capacity} человек · {unit.total_units} в
                           наличии
+                        </p>
+                        <p className="mt-1 text-sm text-text-tertiary">
+                          {policyLabel(unit.cancellation_policy)}
                         </p>
                       </div>
                       {unit.base_price ? (

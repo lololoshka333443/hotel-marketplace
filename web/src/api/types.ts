@@ -91,7 +91,8 @@ export interface UnitTypeOut {
   name: string;
   capacity: number;
   total_units: number;
-  base_price?: number;
+  base_price?: number | null;
+  cancellation_policy?: string | null;
 }
 
 /** A rate plan: the price schedule of one unit type. */

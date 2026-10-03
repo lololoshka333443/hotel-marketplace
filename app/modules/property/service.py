@@ -294,7 +294,7 @@ async def list_public_unit_types(conn: asyncpg.Connection, property_id: str) -> 
     rows = await conn.fetch(
         """
         SELECT ut.id::text, ut.property_id::text, ut.name, ut.capacity,
-               ut.total_units,
+               ut.total_units, ut.base_price::float8,
                COALESCE(
                  (SELECT min(pd.price)::float8
                   FROM price_day pd
@@ -304,7 +304,15 @@ async def list_public_unit_types(conn: asyncpg.Connection, property_id: str) -> 
                     AND pd.date < current_date + interval '30 days'
                     AND pd.stop_sell = false),
                  ut.base_price::float8
-               ) AS price
+               ) AS price,
+               -- The guest needs the room's cancellation terms before paying.
+               -- A room with no rate plan has no terms yet, so it stays null
+               -- and the UI says so rather than inventing a default.
+               (SELECT rp.cancellation_policy
+                  FROM rate_plan rp
+                 WHERE rp.unit_type_id = ut.id AND rp.active
+                 ORDER BY rp.created_at
+                 LIMIT 1) AS cancellation_policy
         FROM unit_type ut
         WHERE ut.property_id = $1
         ORDER BY ut.created_at

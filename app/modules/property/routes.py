@@ -139,11 +139,7 @@ async def list_public_unit_types(property_id: str) -> list[UnitTypeOut]:
         )
         if not published:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="property not found")
-        rows = await conn.fetch(
-            "SELECT id::text, property_id::text, name, capacity, total_units, "
-            "base_price::float8 FROM unit_type WHERE property_id = $1 ORDER BY created_at",
-            property_id,
-        )
-        return [UnitTypeOut(**dict(r)) for r in rows]
+        rooms = await service.list_public_unit_types(conn, property_id)
+        return [UnitTypeOut(**r) for r in rooms]
     finally:
         await get_pool().release(conn)
