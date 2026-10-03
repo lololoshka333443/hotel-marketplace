@@ -223,7 +223,12 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
         # checkin_date is a date; the free window ends at that date boundary.
         is_free = dt.date.today() <= deadline
 
-        amount = booking["total_amount"]
+        # A late cancellation keeps the penalty share; the rest goes back to
+        # the guest. The rate is a legal constant, not a technical default.
+        if is_free:
+            amount = booking["total_amount"]
+        else:
+            amount = round(booking["total_amount"] * (1 - legal.CANCELLATION_PENALTY_RATE), 2)
         result = await provider.refund(booking_id, amount)
         if result.status != "refunded":
             raise PaymentError("refund failed")
@@ -291,9 +296,11 @@ async def refund_booking(booking_id: str, conn: asyncpg.Connection | None = None
                 code=row["code"],
                 free_cancelled=is_free,
                 deadline=deadline.isoformat(),
+                refunded_amount=amount,
             )
             out = await _row_to_out(row, lines)
             out["free_cancelled"] = is_free
+            out["refunded_amount"] = amount
             return out
     finally:
         if pool is not None:

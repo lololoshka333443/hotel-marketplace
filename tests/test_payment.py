@@ -194,3 +194,62 @@ async def test_refund_hold_booking_refused(committed_conn) -> None:
 
     with pytest.raises(service.PaymentError):
         await service.refund_booking(booking_id, conn=committed_conn)
+
+
+@pytest.mark.asyncio
+async def test_late_cancellation_keeps_the_penalty(committed_conn) -> None:
+    """Cancelling on the check-in day refunds only the non-penalty share.
+
+    The deadline is 24h before check-in, so a stay starting today is already
+    past it. Before this fix the guest got the whole amount back and the
+    penalty in app/config/legal.py was dead code.
+    """
+    from app.config import legal
+
+    ut = await _seed_unit(committed_conn, "pay7@example.com")
+    booking_id = await _hold(committed_conn, ut)
+    await service.pay_and_confirm(booking_id, conn=committed_conn)
+
+    total = await committed_conn.fetchval(
+        "SELECT total_amount::float8 FROM booking WHERE id = $1", booking_id
+    )
+
+    result = await service.refund_booking(booking_id, conn=committed_conn)
+
+    expected = round(total * (1 - legal.CANCELLATION_PENALTY_RATE), 2)
+    assert result["refunded_amount"] == expected
+    assert result["free_cancelled"] is False
+
+
+@pytest.mark.asyncio
+async def test_early_cancellation_is_free(committed_conn) -> None:
+    """Cancelling before the deadline refunds everything."""
+    from app.modules.booking import service as booking_service
+
+    ut = await _seed_unit(committed_conn, "pay8@example.com")
+    # _seed_unit covers 30 days; the stay starts at the edge, so extend the
+    # inventory to the checkout night or the hold finds no rows.
+    await committed_conn.execute(
+        "INSERT INTO inventory_day (unit_type_id, date, available) "
+        "SELECT $1, d.date, 1 FROM generate_series(($2::date + 29)::date,"
+        " ($3::date - 1)::date, '1 day') AS d(date)"
+        " ON CONFLICT (unit_type_id, date) DO NOTHING",
+        ut,
+        TODAY,
+        TODAY + dt.timedelta(days=32),
+    )
+    booking = await booking_service.create_hold(
+        committed_conn,
+        unit_type_id=ut,
+        checkin=TODAY + dt.timedelta(days=30),
+        checkout=TODAY + dt.timedelta(days=32),
+        idempotency_key=f"k-{uuid.uuid4()}",
+        **_guest(),
+    )
+    booking_id = booking["id"]
+    await service.pay_and_confirm(booking_id, conn=committed_conn)
+
+    result = await service.refund_booking(booking_id, conn=committed_conn)
+
+    assert result["refunded_amount"] == 6000
+    assert result["free_cancelled"] is True
