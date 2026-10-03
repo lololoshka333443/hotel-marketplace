@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { catalog } from "@/api/client";
 import { BookingPanel } from "@/components/BookingPanel";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatPrice, formatPriceFrom } from "@/utils/format";
 
@@ -33,6 +34,9 @@ export function PropertyPage() {
   const [unitId, setUnitId] = useState<string | null>(null);
   const selectedUnit =
     unitTypes?.find((u) => u.id === unitId) ?? unitTypes?.[0];
+
+  // The gallery opens a lightbox at the photo the guest clicked.
+  const [photoIndex, setPhotoIndex] = useState<number | null>(null);
 
   if (isPending) {
     return (
@@ -64,18 +68,53 @@ export function PropertyPage() {
     );
   }
 
-  const photo = property.photos?.[0];
+  const photos = property.photos ?? [];
 
   return (
     <div className="mx-auto max-w-[1120px] px-4 py-16 sm:px-6 lg:px-8">
       <div className="grid gap-12 lg:grid-cols-[1fr_360px]">
         <div>
-          {photo ? (
-            <img
-              src={photo.full}
-              alt={property.name}
-              className="h-72 w-full rounded-xl object-cover sm:h-96"
-            />
+          {photos.length > 0 ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => setPhotoIndex(0)}
+                className="group relative block w-full overflow-hidden rounded-xl focus:outline-none focus-visible:shadow-focus-ring"
+                aria-label="Открыть галерею"
+              >
+                <img
+                  src={photos[0].full}
+                  alt={property.name}
+                  className="h-72 w-full object-cover transition-transform duration-micro group-hover:scale-[1.01] sm:h-96"
+                />
+                {photos.length > 1 ? (
+                  <span className="absolute bottom-3 right-3 rounded-full bg-scrim px-3 py-1 text-xs text-white">
+                    {photos.length} фото
+                  </span>
+                ) : null}
+              </button>
+
+              {photos.length > 1 ? (
+                <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
+                  {photos.map((p, i) => (
+                    <li key={p.id} className="shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPhotoIndex(i)}
+                        className="block overflow-hidden rounded-lg border border-border-default transition-colors duration-micro hover:border-border-strong focus:outline-none focus-visible:shadow-focus-ring"
+                        aria-label={`Фото ${i + 1} из ${photos.length}`}
+                      >
+                        <img
+                          src={p.thumb}
+                          alt=""
+                          className="h-20 w-28 object-cover"
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : (
             <div className="flex h-72 w-full items-center justify-center rounded-xl border border-border-default bg-surface-sunken text-text-tertiary sm:h-96">
               Фото скоро появятся
@@ -163,6 +202,14 @@ export function PropertyPage() {
           ) : null}
         </aside>
       </div>
+      {photoIndex !== null && photos.length > 0 ? (
+        <PhotoLightbox
+          photos={photos}
+          index={photoIndex}
+          title={property.name}
+          onClose={() => setPhotoIndex(null)}
+        />
+      ) : null}
     </div>
   );
 }
