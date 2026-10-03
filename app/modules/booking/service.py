@@ -57,6 +57,40 @@ async def _load_or_lock_inventory(
     )
 
 
+async def _night_prices(
+    conn: asyncpg.Connection,
+    unit_type_id: str,
+    checkin: dt.date,
+    checkout: dt.date,
+) -> list[tuple[dt.date, float]]:
+    """Per-night prices for the stay, the way availability prices them.
+
+    The active rate plan's `price_day` wins; a night without a row falls back
+    to the unit type's base price. Read after the inventory rows are locked,
+    so the price comes from the same transaction as the availability check.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT i.date,
+               COALESCE(pd.price::float8, ut.base_price::float8) AS price
+        FROM inventory_day i
+        JOIN unit_type ut ON ut.id = i.unit_type_id
+        LEFT JOIN rate_plan rp
+               ON rp.unit_type_id = ut.id AND rp.active
+        LEFT JOIN price_day pd
+               ON pd.rate_plan_id = rp.id AND pd.date = i.date
+        WHERE i.unit_type_id = $1
+          AND i.date >= $2
+          AND i.date <  $3
+        ORDER BY i.date
+        """,
+        unit_type_id,
+        checkin,
+        checkout,
+    )
+    return [(r["date"], float(r["price"])) for r in rows]
+
+
 class BookingError(Exception):
     """Base class for expected booking failures."""
 
@@ -142,8 +176,13 @@ async def create_hold(
         if free < 1:
             raise NotAvailable(f"no free inventory at {row['date']}")
 
-    # ---- price
-    total = float(ut["base_price"]) * nights
+    # ---- price: the per-night price the availability read already showed the
+    # guest. A night with no explicit price row falls back to base_price, the
+    # same way get_availability and the channel read-API price it, so the
+    # catalog, the checkout and the charge can never disagree.
+    priced = await _night_prices(conn, unit_type_id, checkin, checkout)
+    night_prices = [price for _, price in priced]
+    total = round(sum(night_prices), 2)
     commission = round(total * legal.COMMISSION_DEFAULT_RATE, 2)
 
     hold_expires_at = dt.datetime.now(dt.UTC) + dt.timedelta(minutes=settings.hold_ttl_min)
@@ -191,7 +230,7 @@ async def create_hold(
         INSERT INTO booking_line (booking_id, date, price)
         VALUES ($1, $2, $3)
         """,
-        [(row["id"], r["date"], float(ut["base_price"])) for r in locked],
+        [(row["id"], date, price) for date, price in priced],
     )
 
     log.info(

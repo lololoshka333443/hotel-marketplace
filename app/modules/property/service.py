@@ -15,6 +15,7 @@ import secrets
 
 import asyncpg
 
+from app.config.amenities import normalise
 from app.modules.property.schemas import PropertyCreate, PropertyOut, PropertyUpdate
 from app.utils.logger import get_logger
 
@@ -28,6 +29,22 @@ def _jsonb(v) -> dict:
     if isinstance(v, str):
         return json.loads(v)
     return v or {}
+
+
+def _amenities(v) -> list[str]:
+    """The column is a jsonb array of keys; asyncpg hands back a str or list.
+
+    Unknown keys are dropped here too, so a key removed from the catalog never
+    reaches the UI as its own label.
+    """
+    if v is None:
+        return []
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except json.JSONDecodeError:
+            return []
+    return normalise(v)
 
 
 def _make_slug(name: str) -> str:
@@ -48,12 +65,13 @@ async def create_property(
         """
         INSERT INTO property
             (partner_id, name, slug, property_type, city, timezone,
-             checkin_time, checkout_time, currency, lat, lng, address, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')
+             checkin_time, checkout_time, currency, lat, lng, address,
+             amenities, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'draft')
         RETURNING
             id::text, partner_id::text, name, slug, property_type, city, timezone,
             checkin_time, checkout_time, currency, status,
-            lat::float8, lng::float8, address::jsonb, created_at
+            lat::float8, lng::float8, address::jsonb, amenities::jsonb, created_at
         """,
         partner_id,
         data.name,
@@ -67,6 +85,9 @@ async def create_property(
         data.lat,
         data.lng,
         json.dumps(data.address),
+        # Normalised, not trusted: the column is free-form jsonb, and what the
+        # partner's UI sends is what the guest's UI has to render.
+        json.dumps(normalise(data.amenities)),
     )
     assert row is not None
     log.info("property-created", partner_id=partner_id, name=data.name)
@@ -85,6 +106,7 @@ async def create_property(
         lat=row["lat"],
         lng=row["lng"],
         address=_jsonb(row["address"]),
+        amenities=_amenities(row["amenities"]),
         created_at=row["created_at"],
     )
 
@@ -94,7 +116,7 @@ async def get_partner_properties(conn: asyncpg.Connection, partner_id: str) -> l
         """
         SELECT id::text, partner_id::text, name, slug, property_type, city, timezone,
                checkin_time, checkout_time, currency, status,
-               lat::float8, lng::float8, address::jsonb, created_at
+               lat::float8, lng::float8, address::jsonb, amenities::jsonb, created_at
         FROM property
         WHERE partner_id = $1
         ORDER BY created_at DESC
@@ -112,7 +134,7 @@ async def get_property_for_partner(
         """
         SELECT id::text, partner_id::text, name, slug, property_type, city, timezone,
                checkin_time, checkout_time, currency, status,
-               lat::float8, lng::float8, address::jsonb, created_at
+               lat::float8, lng::float8, address::jsonb, amenities::jsonb, created_at
         FROM property
         WHERE id = $1 AND partner_id = $2
         """,
@@ -129,6 +151,7 @@ async def get_public_property(conn: asyncpg.Connection, property_id: str) -> dic
         SELECT p.id::text, p.name, p.slug, p.property_type, p.city, p.timezone,
                p.checkin_time, p.checkout_time, p.currency,
                p.lat::float8, p.lng::float8, p.address::jsonb, p.photos::jsonb,
+               p.amenities::jsonb,
                (SELECT min(ut.base_price)::float8
                   FROM unit_type ut
                  WHERE ut.property_id = p.id) AS min_price
@@ -139,7 +162,12 @@ async def get_public_property(conn: asyncpg.Connection, property_id: str) -> dic
     )
     if row is None:
         return None
-    return dict(row, address=_jsonb(row["address"]), photos=_jsonb(row["photos"]))
+    return dict(
+        row,
+        address=_jsonb(row["address"]),
+        photos=_jsonb(row["photos"]),
+        amenities=_amenities(row["amenities"]),
+    )
 
 
 async def list_public_properties(
@@ -212,6 +240,7 @@ async def list_public_properties(
         SELECT p.id::text, p.name, p.slug, p.property_type, p.city, p.timezone,
                p.checkin_time, p.checkout_time, p.currency,
                p.lat::float8, p.lng::float8, p.address::jsonb, p.photos::jsonb,
+               p.amenities::jsonb,
                (SELECT min(ut.base_price)::float8
                   FROM unit_type ut
                  WHERE ut.property_id = p.id) AS min_price
@@ -224,7 +253,12 @@ async def list_public_properties(
     )
     out = []
     for r in rows:
-        row = dict(r, address=_jsonb(r["address"]), photos=_jsonb(r["photos"]))
+        row = dict(
+            r,
+            address=_jsonb(r["address"]),
+            photos=_jsonb(r["photos"]),
+            amenities=_amenities(r["amenities"]),
+        )
         # No room types yet: the property is published but unbookable, and
         # min_price None is exactly that — the UI says "цена не указана".
         row["min_price"] = r["min_price"]
@@ -243,7 +277,9 @@ async def update_property(
 
     if "address" in fields:
         fields["address"] = json.dumps(fields["address"])
-
+    if "amenities" in fields:
+        # Same normalisation as create: unknown keys die here, order survives.
+        fields["amenities"] = json.dumps(normalise(fields["amenities"]))
     cols = list(fields)
     assignments = ", ".join(f"{c} = ${i + 3}" for i, c in enumerate(cols))
     values = [property_id, partner_id, *[fields[c] for c in cols]]
@@ -255,7 +291,7 @@ async def update_property(
         WHERE id = $1 AND partner_id = $2
         RETURNING id::text, partner_id::text, name, slug, property_type, city, timezone,
                   checkin_time, checkout_time, currency, status,
-                  lat::float8, lng::float8, address::jsonb, created_at
+                  lat::float8, lng::float8, address::jsonb, amenities::jsonb, created_at
         """,
         *values,
     )
@@ -278,6 +314,7 @@ def _row_to_out(row: asyncpg.Record) -> PropertyOut:
         lat=row["lat"],
         lng=row["lng"],
         address=_jsonb(row["address"]),
+        amenities=_amenities(row["amenities"]),
         created_at=row["created_at"],
     )
 

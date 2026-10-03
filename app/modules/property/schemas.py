@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.config.amenities import normalise
+
 PropertyType = Literal["hotel", "apartment", "house", "room", "hostel"]
 PropertyStatus = Literal["draft", "pending_moderation", "published", "blocked"]
 
@@ -20,6 +22,7 @@ class PropertyBase(BaseModel):
     lat: float | None = None
     lng: float | None = None
     address: dict = Field(default_factory=dict)
+    amenities: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_tz(self) -> PropertyBase:
@@ -46,6 +49,7 @@ class PropertyUpdate(BaseModel):
     lng: float | None = None
     address: dict | None = None
     status: PropertyStatus | None = None
+    amenities: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_tz(self) -> PropertyUpdate:
@@ -73,6 +77,14 @@ class PropertyOut(BaseModel):
     lng: float | None
     address: dict
     created_at: dt.datetime
+    amenities: list[str] = []
+
+    @model_validator(mode="after")
+    def normalise_amenities(self) -> PropertyOut:
+        # The DB column is free-form; the API echoes only known keys, in the
+        # order the partner picked them.
+        self.amenities = normalise(self.amenities)
+        return self
 
     model_config = {"from_attributes": True}
 
@@ -92,6 +104,7 @@ class PropertyPublicOut(BaseModel):
     lat: float | None
     lng: float | None
     address: dict
+    amenities: list[str] = []
 
 
 class PhotoOut(BaseModel):

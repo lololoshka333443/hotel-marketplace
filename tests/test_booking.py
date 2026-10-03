@@ -355,3 +355,102 @@ async def test_concurrent_holds_single_room(_test_db) -> None:
             await cleanup.execute("DELETE FROM property")
             await cleanup.execute("DELETE FROM partner")
         await pool.close()
+
+
+# ---------------------------------------------------------------- rate-plan pricing
+
+
+async def _seed_unit_with_rate_plan(
+    conn: asyncpg.Connection, email: str, base_price: float, rate_price: float
+) -> str:
+    """A unit type with an active rate plan that reprices its whole window.
+
+    The partner sets a seasonal rate over the stay's nights; the hold must
+    charge that, not the unit's base price.
+    """
+    from app.modules.rate import service as rate_service
+
+    ut = await _seed_unit(conn, email)
+    await conn.execute("UPDATE unit_type SET base_price = $2 WHERE id = $1", ut, base_price)
+
+    rp = await rate_service.create_rate_plan(conn, ut, "Сезон")
+    await rate_service.set_prices(
+        conn,
+        rp["id"],
+        TODAY,
+        TODAY + dt.timedelta(days=29),
+        price=rate_price,
+    )
+    return ut
+
+
+@pytest.mark.asyncio
+async def test_hold_charges_the_rate_plan_price(db_conn) -> None:
+    """The hold charges what the availability read shows the guest.
+
+    `get_availability` prices a night from the active rate plan and falls back
+    to base_price. The hold used to ignore the plan and charge base_price, so
+    a guest who saw 9990 ₽ on the checkout was charged 6500 ₽ — and the
+    commission, the refund and the partner's report were all computed from the
+    wrong number.
+    """
+    ut = await _seed_unit_with_rate_plan(db_conn, "rp-1@example.com", 6500, 9990)
+
+    hold = await service.create_hold(
+        db_conn, unit_type_id=ut, checkin=TODAY, checkout=TODAY + dt.timedelta(days=3), **_guest()
+    )
+
+    assert hold["total_amount"] == 9990 * 3
+
+    lines = await db_conn.fetch(
+        "SELECT price::float8 FROM booking_line WHERE booking_id = $1 ORDER BY date", hold["id"]
+    )
+    assert [line["price"] for line in lines] == [9990, 9990, 9990]
+
+
+@pytest.mark.asyncio
+async def test_hold_falls_back_to_base_price_without_price_rows(db_conn) -> None:
+    """A rate plan with no rows for the night keeps the base price.
+
+    The partner creates the plan for its cancellation terms but prices only
+    part of the season; the unpriced nights fall back, exactly as
+    `get_availability` does.
+    """
+    from app.modules.rate import service as rate_service
+
+    ut = await _seed_unit(db_conn, "rp-2@example.com")
+    await db_conn.execute("UPDATE unit_type SET base_price = $2 WHERE id = $1", ut, 4000)
+    await rate_service.create_rate_plan(db_conn, ut, "Основной")
+
+    hold = await service.create_hold(
+        db_conn, unit_type_id=ut, checkin=TODAY, checkout=TODAY + dt.timedelta(days=2), **_guest()
+    )
+
+    assert hold["total_amount"] == 4000 * 2
+
+
+@pytest.mark.asyncio
+async def test_hold_mixes_priced_and_unpriced_nights(db_conn) -> None:
+    """A stay straddling the priced and the unpriced part is summed per night.
+
+    Nights with a price row pay it, the rest pay base_price — never a flat
+    average and never one or the other.
+    """
+    from app.modules.rate import service as rate_service
+
+    base = 4000
+    seasonal = 9000
+    ut = await _seed_unit(db_conn, "rp-3@example.com")
+    await db_conn.execute("UPDATE unit_type SET base_price = $2 WHERE id = $1", ut, base)
+
+    rp = await rate_service.create_rate_plan(db_conn, ut, "Сезон")
+    # Only the first two nights of the stay are priced; the third falls back.
+    await rate_service.set_prices(
+        db_conn, rp["id"], TODAY, TODAY + dt.timedelta(days=2), price=seasonal
+    )
+
+    hold = await service.create_hold(
+        db_conn, unit_type_id=ut, checkin=TODAY, checkout=TODAY + dt.timedelta(days=3), **_guest()
+    )
+
+    assert hold["total_amount"] == seasonal * 2 + base

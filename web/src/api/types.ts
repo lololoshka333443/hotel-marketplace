@@ -58,10 +58,47 @@ export interface PropertyPublic {
   /** Property photos — the first is the catalog cover. Empty until the partner
    * uploads some (`POST /v1/partner/properties/{id}/photos`). */
   photos?: Photo[];
+  /** Amenity keys from the backend catalog (app.config.amenities). Empty until
+   * the partner picks some in the cabinet. */
+  amenities?: string[];
   /** Cheapest night across the property's room types. Null when the property
    * has no rooms yet — published but not yet bookable. */
   min_price?: number | null;
 }
+
+/**
+ * The amenity catalog, mirrored from `app/config/amenities.py`.
+ *
+ * The backend owns the keys and the labels; this copy is what the UI renders,
+ * so a guest and a partner never see two names for the same key. A key the
+ * catalog lost still renders — as its own key, not a crash.
+ */
+export const AMENITY_CATALOG: { key: string; label: string }[] = [
+  { key: "wifi", label: "Wi-Fi" },
+  { key: "parking", label: "Парковка" },
+  { key: "pool", label: "Бассейн" },
+  { key: "breakfast", label: "Завтрак" },
+  { key: "kitchen", label: "Кухня" },
+  { key: "washer", label: "Стиральная машина" },
+  { key: "conditioner", label: "Кондиционер" },
+  { key: "heating", label: "Отопление" },
+  { key: "tv", label: "Телевизор" },
+  { key: "balcony", label: "Балкон" },
+  { key: "sea_view", label: "Вид на море" },
+  { key: "pets", label: "Можно с животными" },
+  { key: "smoking", label: "Можно курить" },
+  { key: "family", label: "Семейный" },
+  { key: "accessibility", label: "Доступность" },
+  { key: "gym", label: "Спортзал" },
+  { key: "spa", label: "Спа" },
+  { key: "transfer", label: "Трансфер" },
+];
+
+/** The Russian label for a key, or the key itself if the catalog lost it. */
+export function amenityLabel(key: string): string {
+  return AMENITY_CATALOG.find((a) => a.key === key)?.label ?? key;
+}
+
 
 /** One property photo: `full` is the sized-down original, `thumb` the card view. */
 export interface Photo {

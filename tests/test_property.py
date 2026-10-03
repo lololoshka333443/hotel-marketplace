@@ -4,7 +4,7 @@ Every test runs inside a rolled-back transaction (see conftest.py), so created
 properties never persist between tests.
 """
 
-from __future__ import annotations
+import json
 
 import pytest
 
@@ -985,3 +985,148 @@ async def test_date_filter_agrees_with_availability_read(db_conn) -> None:
     days = await inventory_service.get_availability(db_conn, unit_id, stay_from, stay_to)
     assert len(days) == 3
     assert all(d["free"] > 0 and not d["closed"] for d in days)
+
+
+# ---------------------------------------------------------------- amenities
+
+
+@pytest.mark.asyncio
+async def test_amenities_round_trip_in_the_partner_and_public_views(db_conn) -> None:
+    """Amenities set on create reach both the partner's list and the catalog.
+
+    Both views normalise the same way: the DB column is free-form, so the API
+    is the one place that decides what a guest ever sees.
+    """
+    partner_id = await _make_partner(db_conn, "am-1@example.com")
+    created = await service.create_property(
+        db_conn,
+        partner_id,
+        PropertyCreate(
+            name="Дом с видом на горы",
+            property_type="house",
+            amenities=["wifi", "pool", "parking"],
+        ),
+    )
+    assert created.amenities == ["wifi", "pool", "parking"]
+
+    # The partner's own list echoes the same keys.
+    mine = await service.get_partner_properties(db_conn, partner_id)
+    assert [p.amenities for p in mine] == [["wifi", "pool", "parking"]]
+
+    # And so does the guest's catalog, once published.
+    await service.update_property(
+        db_conn, created.id, partner_id, PropertyUpdate(status="published")
+    )
+    public = await service.get_public_property(db_conn, created.id)
+    assert public is not None
+    assert public["amenities"] == ["wifi", "pool", "parking"]
+
+    page = await service.list_public_properties(db_conn)
+    assert page["items"][0]["amenities"] == ["wifi", "pool", "parking"]
+
+
+@pytest.mark.asyncio
+async def test_unknown_amenity_keys_are_dropped_on_write(db_conn) -> None:
+    """A key the catalog does not know never reaches the guest.
+
+    The partner's UI offers a fixed list, but the column is free-form jsonb,
+    so the service is what keeps a typo from being rendered as its own label.
+    """
+    partner_id = await _make_partner(db_conn, "am-2@example.com")
+    created = await service.create_property(
+        db_conn,
+        partner_id,
+        PropertyCreate(
+            name="Квартира у моря",
+            property_type="apartment",
+            amenities=["wifi", "typo_key", "WI-FI"],
+        ),
+    )
+    assert created.amenities == ["wifi"]
+
+    # What survived the write is what is stored.
+    stored = await db_conn.fetchval("SELECT amenities FROM property WHERE id = $1", created.id)
+    # asyncpg decodes jsonb to a str unless a codec is registered; either way
+    # the only key that survived the write is the known one.
+    assert json.loads(stored) == ["wifi"]
+
+
+@pytest.mark.asyncio
+async def test_amenities_update_replaces_the_whole_list(db_conn) -> None:
+    """PATCH amenities is a full replace, not an append.
+
+    The UI sends the whole selection, so the order the partner sees is the
+    order the guest gets, and un-selecting a key removes it.
+    """
+    partner_id = await _make_partner(db_conn, "am-3@example.com")
+    created = await service.create_property(
+        db_conn,
+        partner_id,
+        PropertyCreate(
+            name="Отель у парка",
+            property_type="hotel",
+            amenities=["wifi", "breakfast"],
+        ),
+    )
+
+    updated = await service.update_property(
+        db_conn,
+        created.id,
+        partner_id,
+        PropertyUpdate(amenities=["breakfast", "parking"]),
+    )
+    assert updated is not None
+    assert updated.amenities == ["breakfast", "parking"]
+
+    # Not sending amenities leaves them alone — the field is optional.
+    again = await service.update_property(
+        db_conn, created.id, partner_id, PropertyUpdate(city="Yalta")
+    )
+    assert again is not None
+    assert again.amenities == ["breakfast", "parking"]
+
+
+@pytest.mark.asyncio
+async def test_amenities_default_to_an_empty_list(db_conn) -> None:
+    """A property created without amenities has [], never null.
+
+    The UI maps over the array; a null would need a second branch that can
+    never say anything useful.
+    """
+    partner_id = await _make_partner(db_conn, "am-4@example.com")
+    created = await service.create_property(db_conn, partner_id, _sample())
+
+    assert created.amenities == []
+    stored = await db_conn.fetchval("SELECT amenities FROM property WHERE id = $1", created.id)
+    assert json.loads(stored) == []
+
+
+@pytest.mark.asyncio
+async def test_amenities_survive_the_http_round_trip(committed_conn) -> None:
+    """The partner route writes amenities and the guest route reads them.
+
+    The public route answers a plain dict, so this is also the check that the
+    jsonb array reaches JSON as an array, not as a quoted string.
+    """
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+    from app.modules.auth.jwt import create_access_token
+
+    partner_id = await _make_partner(committed_conn, "am-http@example.com")
+    created = await service.create_property(committed_conn, partner_id, _sample())
+
+    with TestClient(create_app()) as client:
+        headers = {"Authorization": f"Bearer {create_access_token(partner_id, scope='partner')}"}
+        patch = client.patch(
+            f"/v1/partner/properties/{created.id}",
+            json={"amenities": ["wifi", "pool", "sea_view"], "status": "published"},
+            headers=headers,
+        )
+        assert patch.status_code == 200, patch.text
+        assert patch.json()["amenities"] == ["wifi", "pool", "sea_view"]
+
+        # The guest's view carries the same keys, in the same order.
+        public = client.get(f"/v1/properties/{created.id}")
+        assert public.status_code == 200, public.text
+        assert public.json()["amenities"] == ["wifi", "pool", "sea_view"]

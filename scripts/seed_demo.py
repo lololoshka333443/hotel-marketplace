@@ -51,7 +51,12 @@ def _demo_cover(label: str) -> bytes:
     bottom = (190, 158, 130)
 
     ramp = Image.new("RGB", (1, 256))
-    ramp.putdata([tuple(round(top[c] + (bottom[c] - top[c]) * i / 255) for c in range(3)) for i in range(256)])
+    ramp.putdata(
+        [
+            tuple(round(top[c] + (bottom[c] - top[c]) * i / 255) for c in range(3))
+            for i in range(256)
+        ]
+    )
     base = ramp.resize((width, height))
 
     # A soft sun: the only shape in the image, blurred to nothing hard.
@@ -67,6 +72,7 @@ def _demo_cover(label: str) -> bytes:
     buf = io.BytesIO()
     base.save(buf, format="JPEG", quality=88)
     return buf.getvalue()
+
 
 # Room photos used to live in web/public/rooms and be wired in here. Photos
 # now belong to the partner API (upload of a photo against a property), and
@@ -90,6 +96,12 @@ PROPERTIES = [
         ],
     },
 ]
+
+AMENITIES = {
+    "Выше неба": ["wifi", "parking", "pool", "breakfast", "conditioner", "sea_view", "family"],
+    "Седьмое небо": ["wifi", "parking", "kitchen", "washer", "heating", "balcony", "transfer"],
+}
+
 
 DEMO_BOOKINGS = [
     # (room_no, guest name, nights from today, status)
@@ -220,6 +232,17 @@ async def main() -> int:
                         "[]",
                     )
 
+                # The demo catalog shows what amenities look like to a guest.
+                # Re-seed refreshes them, like it refreshes status and price.
+                keys = AMENITIES.get(property_def["name"], [])
+                if keys:
+                    from app.config.amenities import normalise
+
+                    await conn.execute(
+                        "UPDATE property SET amenities = $2 WHERE id = $1",
+                        property_id,
+                        json.dumps(normalise(keys)),
+                    )
                 # A demo cover so the catalog is not all placeholders: generated
                 # here, stored through the same path a partner's upload takes.
                 has_photos = await conn.fetchval(

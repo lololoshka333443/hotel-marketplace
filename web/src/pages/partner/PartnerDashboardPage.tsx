@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { PropertyPhotos } from "@/components/PropertyPhotos";
+import { AmenityPicker } from "@/components/AmenityPicker";
 import type { PropertyOut } from "@/api/types";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -168,11 +169,12 @@ function PropertyList({ properties }: { properties: PropertyOut[] }) {
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <PropertyPhotos
                 propertyId={property.id}
                 propertyName={property.name}
               />
+              <AmenityPicker property={property} />
               <Link to="/partner/calendar">
                 <Button variant="secondary">Шахматка</Button>
               </Link>

@@ -8,6 +8,7 @@ import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatPrice, formatPriceFrom } from "@/utils/format";
 import { policyLabel } from "@/utils/policy";
+import { amenityLabel } from "@/api/types";
 
 export function PropertyPage() {
   const { id } = useParams();
@@ -172,6 +173,27 @@ export function PropertyPage() {
                         </p>
                       ) : null}
                     </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="mt-12">
+            <h2 className="font-serif text-2xl font-normal">Удобства</h2>
+            {(property.amenities ?? []).length === 0 ? (
+              <p className="mt-4 text-text-secondary">
+                У удобств этого объекта нет описания. Подробности можно
+                уточнить у партнёра при заезде.
+              </p>
+            ) : (
+              <ul className="mt-6 flex flex-wrap gap-2">
+                {(property.amenities ?? []).map((key) => (
+                  <li
+                    key={key}
+                    className="inline-flex items-center rounded-full border border-border-strong bg-surface-card px-4 py-2 text-sm text-text-secondary"
+                  >
+                    {amenityLabel(key)}
                   </li>
                 ))}
               </ul>
