@@ -19,12 +19,18 @@ export function LoginPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Where to send the partner after a successful login.
-  const from = (location.state as { from?: string } | null)?.from ?? "/partner";
-
+  // Where to send the partner after a successful login. The expired-session
+  // sign-out passes the current page as a query param; a guarded route passes
+  // it through location.state.
+  const searchFrom = new URLSearchParams(location.search).get("from");
+  const from =
+    (location.state as { from?: string } | null)?.from ?? searchFrom ?? "/partner";
+  const [error, setError] = useState<string | null>(
+    // The expired-session sign-out lands here with ?from=<page>.
+    searchFrom !== null ? "Сессия истекла. Войдите снова." : null,
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   const login = useMutation({
     mutationFn: () => auth.login(email, password),

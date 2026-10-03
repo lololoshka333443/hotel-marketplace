@@ -30,6 +30,7 @@ import type {
   PropertyOut,
   PropertyPublic,
   PropertyPage,
+  PropertyStatus,
   PropertyType,
   Photo,
   TokenResponse,
@@ -104,6 +105,19 @@ async function request<T>(
 
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
+
+  // An expired JWT is not a network error: the token is simply gone. Drop it
+  // and send the partner back to the login screen instead of leaving every
+  // authenticated request failing silently with a stale token in storage.
+  if (response.status === 401 && getToken()) {
+    setToken(null);
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.assign(
+        `/login?from=${encodeURIComponent(window.location.pathname)}`,
+      );
+    }
+    throw new ApiException(401, "Сессия истекла. Войдите снова.");
+  }
 
   if (!response.ok) {
     const err = (data ?? {}) as Partial<ApiError> & Partial<HoldConflict>;
@@ -270,6 +284,14 @@ export const partner = {
     property_type: PropertyType;
     city?: string;
   }) => request<PropertyOut>("/partner/properties", { method: "POST", body }),
+  updateProperty: (
+    propertyId: string,
+    body: { amenities?: string[]; status?: PropertyStatus },
+  ) =>
+    request<PropertyOut>(`/partner/properties/${propertyId}`, {
+      method: "PATCH",
+      body,
+    }),
   photos: {
     list: (propertyId: string, signal?: AbortSignal) =>
       request<Photo[]>(`/partner/properties/${propertyId}/photos`, { signal }),
