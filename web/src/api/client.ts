@@ -140,6 +140,8 @@ export const catalog = {
     city?: string,
     guests?: number,
     q?: string,
+    dateFrom?: string,
+    dateTo?: string,
     limit = 24,
     offset = 0,
     signal?: AbortSignal,
@@ -148,6 +150,8 @@ export const catalog = {
     if (city) params.set("city", city);
     if (guests) params.set("guests", String(guests));
     if (q) params.set("q", q);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     params.set("limit", String(limit));
     params.set("offset", String(offset));
     return request<PropertyPage>(`/properties?${params.toString()}`, {

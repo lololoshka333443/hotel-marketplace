@@ -11,10 +11,23 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 /** Party sizes the catalog supports; a larger party narrows itself out. */
 const GUEST_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 
+/** Today as `YYYY-MM-DD` in the browser's zone — the `min` of a date input.
+ *
+ * `toISOString()` would answer UTC, which is a day off for a guest browsing
+ * late in the evening east of Greenwich. */
+function todayIso(): string {
+  const now = new Date();
+  return [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+    .map((n) => String(n).padStart(2, "0"))
+    .join("-");
+}
+
 export function SearchPage() {
   useDocumentTitle("Поиск жилья");
   const [query, setQuery] = useState("");
   const [guests, setGuests] = useState<number>(0);
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 6;
 
@@ -27,12 +40,14 @@ export function SearchPage() {
     isPending,
     isError,
   } = useQuery({
-    queryKey: ["properties", guests, debouncedQuery, page],
+    queryKey: ["properties", guests, debouncedQuery, dateFrom, dateTo, page],
     queryFn: ({ signal }) =>
       catalog.list(
         undefined,
         guests || undefined,
         debouncedQuery || undefined,
+        dateFrom || undefined,
+        dateTo || undefined,
         PAGE_SIZE,
         page * PAGE_SIZE,
         signal,
@@ -75,6 +90,46 @@ export function SearchPage() {
         <span
           aria-hidden="true"
           className="h-8 w-px shrink-0 bg-border-strong"
+        />
+        <label
+          htmlFor="search-date-from"
+          className="shrink-0 text-sm text-text-tertiary"
+        >
+          Заезд
+        </label>
+        <input
+          id="search-date-from"
+          type="date"
+          value={dateFrom}
+          min={todayIso()}
+          onChange={(e) => {
+            setDateFrom(e.target.value);
+            resetPage();
+          }}
+          className="h-11 shrink-0 bg-transparent text-base text-text-primary focus:outline-none"
+        />
+        <span
+          aria-hidden="true"
+          className="shrink-0 text-sm text-text-tertiary"
+        >
+          →
+        </span>
+        <label
+          htmlFor="search-date-to"
+          className="shrink-0 text-sm text-text-tertiary"
+        >
+          Выезд
+        </label>
+        <input
+          id="search-date-to"
+          type="date"
+          value={dateTo}
+          min={dateFrom || todayIso()}
+          onChange={(e) => {
+            setDateTo(e.target.value);
+            resetPage();
+          }}
+          className="h-11 shrink-0 bg-transparent text-base text-text-primary focus:outline-none"
         />
         <label
           htmlFor="search-guests"

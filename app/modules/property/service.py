@@ -9,6 +9,7 @@ in the routes by passing the partner_id from the JWT.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import secrets
 
@@ -146,6 +147,8 @@ async def list_public_properties(
     city: str | None = None,
     guests: int | None = None,
     q: str | None = None,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
     limit: int = 24,
     offset: int = 0,
 ) -> dict:
@@ -155,6 +158,10 @@ async def list_public_properties(
     hotel is not excluded because its cheapest room is a single. Properties
     without room types never match, which is right: they are not bookable yet.
     `q` matches the name or the city, the two things the search pill offered.
+    `date_from`/`date_to` keep a property that has a room type free for the
+    whole stay: every night of the half-open interval open and unsold. This is
+    the catalog-level view of `inventory.get_availability`, so the two never
+    disagree about what is bookable.
     Returns a page plus the total, so the UI can page without fetching all.
     """
     args: list = []
@@ -171,6 +178,27 @@ async def list_public_properties(
     if q:
         args.append(f"%{q}%")
         where += f" AND (p.name ILIKE ${len(args)} OR p.city ILIKE ${len(args)})"
+    if date_from and date_to and date_to > date_from:
+        # Half-open [date_from, date_to), same as the availability read: the
+        # checkout day is not a stay. Every night of the stay must have a row
+        # that is open and still free — a missing row means the generator
+        # never ran for that room, so it is not bookable, and the catalog
+        # must not offer it. This mirrors inventory.get_availability, which
+        # treats a missing day as unavailable.
+        args.append(date_from)
+        args.append(date_to)
+        nights_start = len(args) - 1
+        where += (
+            f" AND EXISTS (SELECT 1 FROM unit_type ut"
+            f" WHERE ut.property_id = p.id"
+            f" AND NOT EXISTS (SELECT g.d::date AS night FROM generate_series"
+            f"  (${nights_start}::date, (${nights_start + 1}::date - interval '1 day'),"
+            f"   interval '1 day') AS g(d)"
+            f"  WHERE NOT EXISTS (SELECT 1 FROM inventory_day i"
+            f"   WHERE i.unit_type_id = ut.id AND i.date = g.d::date"
+            f"     AND NOT i.closed"
+            f"     AND i.available - i.hold - i.sold > 0)))"
+        )
 
     total = await conn.fetchval(
         f"SELECT count(*) FROM property p WHERE {where}",

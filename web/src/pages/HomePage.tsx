@@ -11,7 +11,16 @@ export function HomePage() {
   const { data, isPending, isError } = useQuery({
     queryKey: ["properties"],
     queryFn: ({ signal }) =>
-      catalog.list(undefined, undefined, undefined, 6, 0, signal),
+      catalog.list(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        6,
+        0,
+        signal,
+      ),
   });
   const properties = data?.items ?? [];
   return (

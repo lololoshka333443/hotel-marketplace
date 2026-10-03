@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -87,19 +88,24 @@ async def list_public_properties(
     city: str | None = None,
     guests: int | None = None,
     q: str | None = None,
+    date_from: dt.date | None = Query(default=None),
+    date_to: dt.date | None = Query(default=None),
     limit: Annotated[int, Query(ge=1, le=100)] = 24,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> PropertyPage:
     """Public catalog — only published properties, no partner-internal fields.
 
     `guests` keeps a property that has any room type sleeping that many.
-    `q` matches name or city. Page by limit/offset; the total comes back so
-    the UI shows how many results the filters left.
+    `q` matches name or city. `date_from`/`date_to` keep a property that has a
+    room type free for the whole half-open stay. Page by limit/offset; the
+    total comes back so the UI shows how many results the filters left.
     """
     conn = await get_pool().acquire()
     try:
         return PropertyPage(
-            **await service.list_public_properties(conn, city, guests, q, limit, offset)
+            **await service.list_public_properties(
+                conn, city, guests, q, date_from, date_to, limit, offset
+            )
         )
     finally:
         await get_pool().release(conn)

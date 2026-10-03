@@ -760,3 +760,168 @@ async def test_catalog_page_past_the_end_keeps_total(db_conn) -> None:
     page = await service.list_public_properties(db_conn, limit=10, offset=100)
     assert page["total"] == 2
     assert page["items"] == []
+
+
+async def _publish_with_room(
+    conn, partner_id: str, email: str, base_price: int = 5000, capacity: int = 2
+) -> str:
+    """A published property with one bookable room and generated inventory.
+
+    The room's inventory_day rows must exist for the date filter to see the
+    room as free, which is also what makes it bookable at all.
+    """
+    from app.modules.inventory import service as inventory_service
+
+    prop = await service.create_property(conn, partner_id, _sample(email + " house", city="Yalta"))
+    await service.update_property(conn, prop.id, partner_id, PropertyUpdate(status="published"))
+    unit_id = await conn.fetchval(
+        "INSERT INTO unit_type (property_id, name, capacity, total_units, base_price) "
+        "VALUES ($1, 'Стандарт', $2, 2, $3) RETURNING id::text",
+        prop.id,
+        capacity,
+        base_price,
+    )
+    await inventory_service.ensure_inventory(conn, unit_id)
+    return prop.id
+
+
+@pytest.mark.asyncio
+async def test_date_filter_keeps_property_free_for_the_whole_stay(db_conn) -> None:
+    """A property with a room open every night of the stay is a match."""
+    import datetime as dt
+
+    partner_id = await _make_partner(db_conn, "dates-1@example.com")
+    await _publish_with_room(db_conn, partner_id, "dates-1")
+
+    stay_from = dt.date.today() + dt.timedelta(days=20)
+    stay_to = stay_from + dt.timedelta(days=3)
+
+    page = await service.list_public_properties(db_conn, date_from=stay_from, date_to=stay_to)
+    assert page["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_date_filter_drops_property_with_one_closed_night(db_conn) -> None:
+    """One closed night inside the stay makes the property unavailable.
+
+    The guest cannot skip the night, so partial availability is not a match —
+    same answer GET /availability would give per room.
+    """
+    import datetime as dt
+
+    from app.modules.inventory import service as inventory_service
+
+    partner_id = await _make_partner(db_conn, "dates-2@example.com")
+    prop_id = await _publish_with_room(db_conn, partner_id, "dates-2")
+    unit_id = await db_conn.fetchval(
+        "SELECT id::text FROM unit_type WHERE property_id = $1", prop_id
+    )
+
+    closed = dt.date.today() + dt.timedelta(days=21)
+    await inventory_service.close_range(
+        db_conn, unit_id, closed, closed + dt.timedelta(days=1), closed=True
+    )
+
+    stay_from = dt.date.today() + dt.timedelta(days=20)
+    stay_to = stay_from + dt.timedelta(days=3)
+    page = await service.list_public_properties(db_conn, date_from=stay_from, date_to=stay_to)
+    assert page["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_date_filter_drops_property_with_no_inventory(db_conn) -> None:
+    """A published property whose room has no inventory rows is not bookable.
+
+    Missing rows are unavailable, so the property must not be offered for the
+    stay — offering it would send the guest to a checkout that cannot confirm.
+    """
+    import datetime as dt
+
+    partner_id = await _make_partner(db_conn, "dates-3@example.com")
+    prop = await service.create_property(
+        db_conn, partner_id, _sample("Нет инвентаря", city="Yalta")
+    )
+    await service.update_property(db_conn, prop.id, partner_id, PropertyUpdate(status="published"))
+    await db_conn.execute(
+        "INSERT INTO unit_type (property_id, name, capacity, total_units, base_price) "
+        "VALUES ($1, 'Стандарт', 2, 1, 5000)",
+        prop.id,
+    )
+
+    stay_from = dt.date.today() + dt.timedelta(days=20)
+    stay_to = stay_from + dt.timedelta(days=2)
+    page = await service.list_public_properties(db_conn, date_from=stay_from, date_to=stay_to)
+    assert page["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_date_filter_combines_with_guests(db_conn) -> None:
+    """Dates and guests narrow together."""
+    import datetime as dt
+
+    partner_id = await _make_partner(db_conn, "dates-4@example.com")
+    await _publish_with_room(db_conn, partner_id, "dates-4", capacity=4)
+
+    stay_from = dt.date.today() + dt.timedelta(days=20)
+    stay_to = stay_from + dt.timedelta(days=2)
+
+    matching = await service.list_public_properties(
+        db_conn, date_from=stay_from, date_to=stay_to, guests=4
+    )
+    assert matching["total"] == 1
+
+    too_many = await service.list_public_properties(
+        db_conn, date_from=stay_from, date_to=stay_to, guests=6
+    )
+    assert too_many["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_date_filter_reversed_range_is_ignored(db_conn) -> None:
+    """date_to <= date_from is not a stay; the filter is skipped, not an error.
+
+    The availability read raises on this, but the catalog treats a nonsense
+    range as "no date filter" rather than refusing to answer.
+    """
+    import datetime as dt
+
+    partner_id = await _make_partner(db_conn, "dates-5@example.com")
+    await _publish_with_room(db_conn, partner_id, "dates-5")
+
+    today = dt.date.today()
+    page = await service.list_public_properties(
+        db_conn, date_from=today + dt.timedelta(days=5), date_to=today
+    )
+    # No date filter applied, so the property is visible again.
+    assert page["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_date_filter_agrees_with_availability_read(db_conn) -> None:
+    """What the catalog offers, GET /availability must call free.
+
+    This is the invariant that makes the date filter trustworthy: the catalog
+    never shows a property whose rooms the availability read reports closed
+    or sold out for the same nights.
+    """
+    import datetime as dt
+
+    from app.modules.inventory import service as inventory_service
+
+    partner_id = await _make_partner(db_conn, "dates-6@example.com")
+    prop_id = await _publish_with_room(db_conn, partner_id, "dates-6")
+    unit_id = await db_conn.fetchval(
+        "SELECT id::text FROM unit_type WHERE property_id = $1", prop_id
+    )
+
+    stay_from = dt.date.today() + dt.timedelta(days=20)
+    stay_to = stay_from + dt.timedelta(days=3)
+
+    # The catalog keeps it...
+    page = await service.list_public_properties(db_conn, date_from=stay_from, date_to=stay_to)
+    assert page["total"] == 1
+
+    # ...and every night of the stay is free for that room.
+    days = await inventory_service.get_availability(db_conn, unit_id, stay_from, stay_to)
+    assert len(days) == 3
+    assert all(d["free"] > 0 and not d["closed"] for d in days)
