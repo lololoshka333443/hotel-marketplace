@@ -57,8 +57,8 @@ Double booking невозможен по архитектуре.
 ```bash
 cd /Users/guuu/Desktop/hotel-marketplace
 uv sync                                       # бэкенд-зависимости
-uv run python -m app.db.migrate               # миграции (1..18)
-uv run uvicorn app.main:app --port 8000       # API + собранный фронт на :8000
+uv run python -m app.db.migrate               # миграции (1..19)
+uv run uvicorn app.main:app --port 8002       # API + собранный фронт на :8002
 uv run pytest tests/ -q                       # 192 теста
 uv run ruff check app tests && uv run ruff format app tests
 

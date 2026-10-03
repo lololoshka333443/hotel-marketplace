@@ -54,8 +54,8 @@ Pull-based фид по типу номера: токен в URL — единст
 - Фронт: `components/IcalExport.tsx` на странице шахматки — URL в readonly-инпуте,
   «Копировать», «Обновить ссылку» с confirm-модалкой (кнопка повторяет действие),
   «Создать ссылку» для отсутствующего фида.
-- `settings.app_base_url` — публичный origin для ссылок (дефолт
-  `http://localhost:8000`, в проде выставить реальный домен).
+- `settings.app_base_url` — публичный origin для ссылок (в локальном `.env`
+  это `http://localhost:8002`, в проде выставить реальный домен).
 
 ### 6. iCal import (Phase 2, срез 2)
 
@@ -387,8 +387,8 @@ fixed-window лимитами в Redis.
 cd /Users/guuu/Desktop/hotel-marketplace
 uv run python -m app.db.migrate            # 16 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
-uv run uvicorn app.main:app --port 8000    # бэк + prod-фронт из web/dist
-cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8000
+uv run uvicorn app.main:app --port 8002    # бэк + prod-фронт из web/dist
+cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8002
 uv run pytest tests/ -q                    # 162 теста
 cd web && npx tsc -b --noEmit
 ```

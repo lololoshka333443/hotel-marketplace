@@ -11,9 +11,13 @@ dist/
 venv/
 
 # Env
+# web/.env.local is the dev proxy port template, not a secret: keep it tracked
+# so a fresh clone proxies to the right API without a manual setup step.
+# .env.example is the backend template for the same reason.
 .env
 .env.*
-
+!.env.example
+!web/.env.local
 # Testing / tooling
 .pytest_cache/
 .mypy_cache/
