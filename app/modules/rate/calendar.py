@@ -52,6 +52,7 @@ async def get_calendar(
                i.hold,
                i.sold,
                i.closed,
+               i.date IS NOT NULL AS generated,
                COALESCE(pd.price::float8, ut.base_price::float8) AS price,
                COALESCE(pd.min_stay, 1) AS min_stay,
                COALESCE(pd.stop_sell, false) AS stop_sell
@@ -89,7 +90,12 @@ async def get_calendar(
         available = r["available"] or 0
         hold = r["hold"] or 0
         sold = r["sold"] or 0
-        closed = bool(r["closed"]) or bool(r["stop_sell"])
+        # A day the inventory generator never covered is not "free with zero
+        # rooms" — the room is simply not for sale that day, and showing it as
+        # free would invite a booking that cannot be honoured. Treat it as
+        # closed: the chessboard draws a lock, and the guest-facing catalog
+        # already filters it out (a missing inventory_day is not bookable).
+        closed = (not r["generated"]) or bool(r["closed"]) or bool(r["stop_sell"])
         units[ut_id]["days"].append(
             {
                 "date": r["date"].isoformat()

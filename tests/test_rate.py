@@ -194,3 +194,29 @@ async def test_calendar_rejects_long_range(db_conn) -> None:
         await calendar.get_calendar(
             db_conn, seed["partner_id"], TODAY, TODAY + dt.timedelta(days=200)
         )
+
+
+@pytest.mark.asyncio
+async def test_calendar_marks_ungenerated_day_as_closed(db_conn) -> None:
+    """A day the inventory generator never covered is not free-with-zero.
+
+    The chessboard used to draw such days as "свободно" with 0 rooms: the
+    LEFT JOIN yields NULL available and the COALESCE turns it into a free cell
+    the partner cannot honour. A missing inventory_day means the room is not
+    for sale that day — same rule the guest-facing catalog applies — so the
+    grid must report it closed.
+    """
+    seed = await _seed(db_conn, "r10@example.com")
+    # _seed covers 30 days from TODAY; ask for a day well past that window.
+    grid = await calendar.get_calendar(
+        db_conn,
+        seed["partner_id"],
+        TODAY + dt.timedelta(days=60),
+        TODAY + dt.timedelta(days=62),
+    )
+
+    unit = grid["units"][0]
+    assert len(unit["days"]) == 2
+    for day in unit["days"]:
+        assert day["closed"] is True
+        assert day["free"] == 0
