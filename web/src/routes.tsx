@@ -3,6 +3,7 @@ import { SearchPage } from "@/pages/SearchPage";
 import { PropertyPage } from "@/pages/PropertyPage";
 import { CheckoutPage } from "@/pages/CheckoutPage";
 import { BookingSuccessPage } from "@/pages/BookingSuccessPage";
+import { MyBookingPage } from "@/pages/MyBookingPage";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { ComponentsPage } from "@/pages/ComponentsPage";
@@ -36,6 +37,9 @@ export const routes: RouteObject[] = [
       { path: "login", element: <LoginPage /> },
       // Reachable from the login page; without this the link 404s.
       { path: "register", element: <RegisterPage /> },
+      // The guest returns to a booking by code: linked from the header and
+      // from the checkout success screen.
+      { path: "my-booking", element: <MyBookingPage /> },
       // States harness for the base components - gate/visual review only.
       { path: "components", element: <ComponentsPage /> },
       {

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 /**
  * States harness - every variant x state of the base components in one page.
@@ -13,6 +14,7 @@ import { Modal } from "@/components/ui/Modal";
  * Not linked in the app nav; route-only (/components).
  */
 export function ComponentsPage() {
+  useDocumentTitle("Компоненты");
   const [modalOpen, setModalOpen] = useState(false);
   const [text, setText] = useState("");
 
