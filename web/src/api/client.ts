@@ -157,6 +157,7 @@ export const catalog = {
     q?: string,
     dateFrom?: string,
     dateTo?: string,
+    amenities?: string[],
     limit = 24,
     offset = 0,
     signal?: AbortSignal,
@@ -167,6 +168,9 @@ export const catalog = {
     if (q) params.set("q", q);
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
+    // The backend takes the array AND-wise, so a repeat of the same key is
+    // exactly what one more checked chip adds.
+    for (const key of amenities ?? []) params.append("amenities", key);
     params.set("limit", String(limit));
     params.set("offset", String(offset));
     return request<PropertyPage>(`/properties?${params.toString()}`, {

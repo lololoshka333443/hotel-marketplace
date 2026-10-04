@@ -1130,3 +1130,143 @@ async def test_amenities_survive_the_http_round_trip(committed_conn) -> None:
         public = client.get(f"/v1/properties/{created.id}")
         assert public.status_code == 200, public.text
         assert public.json()["amenities"] == ["wifi", "pool", "sea_view"]
+
+
+@pytest.mark.asyncio
+async def test_amenity_filter_keeps_only_properties_offering_all(db_conn) -> None:
+    """The catalog's amenity filter is AND-wise: a guest asking for Wi-Fi and a
+    pool wants both, not a place with one of the two.
+    """
+    partner_id = await _make_partner(db_conn, "am-filter-1@example.com")
+    with_pool = await service.create_property(
+        db_conn,
+        partner_id,
+        PropertyCreate(
+            name="С бассейном",
+            property_type="hotel",
+            city="Koktebel",
+            amenities=["wifi", "pool", "parking"],
+        ),
+    )
+    wifi_only = await service.create_property(
+        db_conn,
+        partner_id,
+        PropertyCreate(
+            name="Только вайфай",
+            property_type="apartment",
+            city="Koktebel",
+            amenities=["wifi"],
+        ),
+    )
+    for prop in (with_pool, wifi_only):
+        await service.update_property(
+            db_conn, prop.id, partner_id, PropertyUpdate(status="published")
+        )
+
+    page = await service.list_public_properties(db_conn, amenities=["wifi"])
+    assert sorted(p["id"] for p in page["items"]) == sorted([with_pool.id, wifi_only.id])
+
+    page = await service.list_public_properties(db_conn, amenities=["wifi", "pool"])
+    assert [p["id"] for p in page["items"]] == [with_pool.id]
+
+    # A key nobody offers still narrows honestly.
+    page = await service.list_public_properties(db_conn, amenities=["gym"])
+    assert page["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_amenity_filter_ignores_keys_the_catalog_dropped(db_conn) -> None:
+    """A request may carry a key a newer release removed. It is dropped and the
+    rest still filter — a stale shared URL must not silently empty the catalog,
+    and a guest never knows which keys are live.
+    """
+    partner_id = await _make_partner(db_conn, "am-filter-2@example.com")
+    prop = await service.create_property(
+        db_conn,
+        partner_id,
+        PropertyCreate(
+            name="Стиральная",
+            property_type="house",
+            city="Feodosia",
+            amenities=["wifi", "washer"],
+        ),
+    )
+    await service.update_property(
+        db_conn, prop.id, partner_id, PropertyUpdate(status="published")
+    )
+
+    # Only unknown keys: nothing recognisable is being asked for, and
+    # returning everything would ignore the guest entirely.
+    only_unknown = await service.list_public_properties(db_conn, amenities=["retired_key"])
+    assert only_unknown["total"] == 0
+
+    # An unknown key riding along does not disable the known one.
+    mixed = await service.list_public_properties(
+        db_conn, amenities=["wifi", "retired_key"]
+    )
+    assert [p["id"] for p in mixed["items"]] == [prop.id]
+
+    # But a real key the property lacks still excludes it.
+    absent = await service.list_public_properties(db_conn, amenities=["pool"])
+    assert absent["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_inverted_date_range_is_rejected_over_http(committed_conn) -> None:
+    """`checkout <= checkin` is not a stay. The catalog answers 422 rather than
+    applying a filter that cannot match anything.
+    """
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+
+    assert committed_conn is not None
+    with TestClient(create_app()) as client:
+        inverted = client.get("/v1/properties?date_from=2026-11-22&date_to=2026-11-20")
+        assert inverted.status_code == 422, inverted.text
+        assert inverted.json()["detail"] == "date_to must be after date_from"
+
+        same_day = client.get("/v1/properties?date_from=2026-11-20&date_to=2026-11-20")
+        assert same_day.status_code == 422, same_day.text
+
+
+@pytest.mark.asyncio
+async def test_amenity_filter_reaches_guests_over_http(committed_conn) -> None:
+    """The filter is wired to the route: ?amenities=wifi&amenities=pool keeps
+    only the property offering both.
+    """
+    from starlette.testclient import TestClient
+
+    from app.main import create_app
+
+    partner_id = await _make_partner(committed_conn, "am-http-filter@example.com")
+    both = await service.create_property(
+        committed_conn,
+        partner_id,
+        PropertyCreate(
+            name="Оба",
+            property_type="hotel",
+            city="Koktebel",
+            amenities=["wifi", "pool"],
+        ),
+    )
+    one = await service.create_property(
+        committed_conn,
+        partner_id,
+        PropertyCreate(
+            name="Один",
+            property_type="hotel",
+            city="Koktebel",
+            amenities=["wifi"],
+        ),
+    )
+    for prop in (both, one):
+        await service.update_property(
+            committed_conn, prop.id, partner_id, PropertyUpdate(status="published")
+        )
+
+    with TestClient(create_app()) as client:
+        page = client.get("/v1/properties?amenities=wifi&amenities=pool")
+        assert page.status_code == 200, page.text
+        assert [p["id"] for p in page.json()["items"]] == [both.id]
+

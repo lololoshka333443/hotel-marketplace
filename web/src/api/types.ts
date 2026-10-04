@@ -13,6 +13,26 @@
  */
 
 export type PropertyType = "hotel" | "apartment" | "house" | "room" | "hostel";
+
+/**
+ * Property-type labels — the mirror of the partner cabinet's select, so the
+ * guest's eyebrow never shows the raw `hotel` key the DB stores. Same one
+ * place as the amenity catalog above.
+ */
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  hotel: "Отель",
+  apartment: "Квартира",
+  house: "Дом",
+  room: "Комната",
+  hostel: "Хостел",
+};
+
+/** The Russian label, or the key itself if the catalog lost the entry. */
+export function propertyTypeLabel(type: string | null | undefined): string {
+  if (!type) return "";
+  return PROPERTY_TYPE_LABELS[type as PropertyType] ?? type;
+}
+
 export type PropertyStatus =
   "draft" | "pending_moderation" | "published" | "blocked";
 export type BookingStatus =

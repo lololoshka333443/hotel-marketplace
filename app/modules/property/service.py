@@ -15,7 +15,7 @@ import secrets
 
 import asyncpg
 
-from app.config.amenities import normalise
+from app.config.amenities import AMENITY_CATALOG, normalise
 from app.modules.property.schemas import PropertyCreate, PropertyOut, PropertyUpdate
 from app.utils.logger import get_logger
 
@@ -177,6 +177,7 @@ async def list_public_properties(
     q: str | None = None,
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
+    amenities: list[str] | None = None,
     limit: int = 24,
     offset: int = 0,
 ) -> dict:
@@ -190,6 +191,10 @@ async def list_public_properties(
     whole stay: every night of the half-open interval open and unsold. This is
     the catalog-level view of `inventory.get_availability`, so the two never
     disagree about what is bookable.
+    `amenities` keeps a property that offers *all* of the asked keys: a guest
+    filtering on Wi-Fi and parking wants both, not one of the two. Unknown
+    keys never match, so a stale URL cannot empty the catalog — the catalog
+    itself is the source of truth for which keys exist.
     Returns a page plus the total, so the UI can page without fetching all.
     """
     args: list = []
@@ -227,7 +232,21 @@ async def list_public_properties(
             f"     AND NOT i.closed"
             f"     AND i.available - i.hold - i.sold > 0)))"
         )
-
+    if amenities:
+        # Only known keys can be in the column (the write path normalises),
+        # but a request may still carry a key the catalog dropped in a
+        # release — filter it out here rather than answering an empty page.
+        wanted = [a for a in amenities if a in AMENITY_CATALOG]
+        if not wanted:
+            # Nothing the catalog recognises: the filter cannot match
+            # anything, and returning everything would ignore the guest.
+            return {"items": [], "total": 0, "limit": limit, "offset": offset}
+        args.append(json.dumps(wanted))
+        where += (
+            # jsonb @> covers the containment; the cast keeps the planner on
+            # the expression index over the cast column.
+            f" AND p.amenities::jsonb @> ${len(args)}::jsonb"
+        )
     total = await conn.fetchval(
         f"SELECT count(*) FROM property p WHERE {where}",
         *args,

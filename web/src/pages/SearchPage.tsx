@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 
 import { catalog } from "@/api/client";
+import { AMENITY_CATALOG, propertyTypeLabel } from "@/api/types";
 import { formatPriceFrom } from "@/utils/format";
+import { cn } from "@/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -28,6 +30,7 @@ export function SearchPage() {
   const [guests, setGuests] = useState<number>(0);
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [picked, setPicked] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 6;
 
@@ -40,7 +43,7 @@ export function SearchPage() {
     isPending,
     isError,
   } = useQuery({
-    queryKey: ["properties", guests, debouncedQuery, dateFrom, dateTo, page],
+    queryKey: ["properties", guests, debouncedQuery, dateFrom, dateTo, picked, page],
     queryFn: ({ signal }) =>
       catalog.list(
         undefined,
@@ -48,6 +51,7 @@ export function SearchPage() {
         debouncedQuery || undefined,
         dateFrom || undefined,
         dateTo || undefined,
+        picked,
         PAGE_SIZE,
         page * PAGE_SIZE,
         signal,
@@ -158,6 +162,38 @@ export function SearchPage() {
         </span>
       </div>
 
+      {/* Amenity chips: the backend takes them AND-wise and unknown keys empty
+       * the page, so the picker only offers keys the catalog knows. */}
+      <ul className="mt-5 flex flex-wrap gap-2">
+        {AMENITY_CATALOG.map((a) => {
+          const on = picked.includes(a.key);
+          return (
+            <li key={a.key}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  setPicked((prev) =>
+                    prev.includes(a.key)
+                      ? prev.filter((k) => k !== a.key)
+                      : [...prev, a.key],
+                  );
+                  resetPage();
+                }}
+                className={cn(
+                  "inline-flex items-center rounded-full border px-4 py-2 text-sm transition-colors duration-micro",
+                  on
+                    ? "border-border-strong bg-surface-sunken text-text-primary"
+                    : "border-border-default bg-surface-card text-text-secondary hover:bg-interactive-hover",
+                )}
+              >
+                {a.label}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
       {isPending ? (
         <p role="status" className="mt-16 text-text-secondary">
           Загружаем объекты…
@@ -207,7 +243,7 @@ export function SearchPage() {
                 )}
                 <div className="flex flex-1 flex-col p-5">
                   <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
-                    {property.property_type}
+                    {propertyTypeLabel(property.property_type)}
                   </p>
                   <h2 className="mt-2 font-serif text-xl font-normal leading-tight text-text-primary">
                     {property.name}

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { catalog } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { formatPriceFrom } from "@/utils/format";
+import { propertyTypeLabel } from "@/api/types";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function HomePage() {
@@ -12,6 +13,7 @@ export function HomePage() {
     queryKey: ["properties"],
     queryFn: ({ signal }) =>
       catalog.list(
+        undefined,
         undefined,
         undefined,
         undefined,
@@ -109,7 +111,7 @@ export function HomePage() {
                 )}
                 <div className="flex flex-1 flex-col p-6">
                   <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
-                    {property.property_type}
+                    {propertyTypeLabel(property.property_type)}
                   </p>
                   <h3 className="mt-2 font-serif text-xl font-normal leading-tight text-text-primary">
                     {property.name}

@@ -90,6 +90,7 @@ async def list_public_properties(
     q: str | None = None,
     date_from: dt.date | None = Query(default=None),
     date_to: dt.date | None = Query(default=None),
+    amenities: list[str] | None = Query(default=None),
     limit: Annotated[int, Query(ge=1, le=100)] = 24,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> PropertyPage:
@@ -97,19 +98,26 @@ async def list_public_properties(
 
     `guests` keeps a property that has any room type sleeping that many.
     `q` matches name or city. `date_from`/`date_to` keep a property that has a
-    room type free for the whole half-open stay. Page by limit/offset; the
-    total comes back so the UI shows how many results the filters left.
+    room type free for the whole half-open stay — and the range must run
+    forward: `checkout <= checkin` is not a stay, so it is a client error
+    rather than a filter that silently matches nothing. `amenities` keeps a
+    property offering *all* of the given keys. Page by limit/offset; the total
+    comes back so the UI shows how many results the filters left.
     """
+    if date_from is not None and date_to is not None and date_to <= date_from:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="date_to must be after date_from",
+        )
     conn = await get_pool().acquire()
     try:
         return PropertyPage(
             **await service.list_public_properties(
-                conn, city, guests, q, date_from, date_to, limit, offset
+                conn, city, guests, q, date_from, date_to, amenities, limit, offset
             )
         )
     finally:
         await get_pool().release(conn)
-
 
 @router.get("/properties/{property_id}", response_model=dict)
 async def get_public_property(property_id: str) -> dict:

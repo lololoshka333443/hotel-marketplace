@@ -8,7 +8,7 @@ import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatPrice, formatPriceFrom } from "@/utils/format";
 import { policyLabel } from "@/utils/policy";
-import { amenityLabel } from "@/api/types";
+import { amenityLabel, propertyTypeLabel } from "@/api/types";
 
 export function PropertyPage() {
   const { id } = useParams();
@@ -125,7 +125,7 @@ export function PropertyPage() {
 
           <div className="mt-8">
             <p className="text-xs font-medium uppercase tracking-eyebrow text-text-secondary">
-              {property.property_type}
+              {propertyTypeLabel(property.property_type)}
             </p>
             <h1 className="mt-3 font-serif text-4xl font-normal leading-display tracking-tight">
               {property.name}
