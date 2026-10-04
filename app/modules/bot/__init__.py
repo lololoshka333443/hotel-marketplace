@@ -26,7 +26,22 @@ log = get_logger(__name__)
 
 
 async def _link(conn, code: str, chat_id: str) -> str | None:
-    """Bind a chat to the partner owning the code. Returns the partner's name."""
+    """Bind a chat to the partner owning the code. Returns the partner's name.
+
+    A chat belongs to one partner at a time. Before the bind, any other partner
+    holding this chat is detached: /unlink matches on the chat alone, so a chat
+    shared by two partners would let one /unlink the other's binding, and both
+    would receive the bookings of whichever stayed. Detaching first keeps the
+    UNIQUE index satisfiable when the chat moves between partners.
+    """
+    await conn.execute(
+        """
+        UPDATE partner SET telegram_chat_id = NULL, telegram_linked_at = NULL
+        WHERE telegram_chat_id = $1 AND telegram_link_code != $2
+        """,
+        str(chat_id),
+        code,
+    )
     row = await conn.fetchrow(
         """
         UPDATE partner

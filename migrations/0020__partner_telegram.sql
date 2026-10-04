@@ -9,8 +9,9 @@
 -- stranger's chat to someone's notifications.
 --
 -- UNIQUE on the code: two partners must never share a linking code, or /start
--- would bind the chat to the wrong one. The index on telegram_chat_id keeps the
--- partner lookup in the notification path an index read.
+-- would bind the chat to the wrong one. The plain index on telegram_chat_id
+-- keeps the partner lookup in the notification path an index read; the chat's
+-- own UNIQUE constraint is added in 0021.
 
 ALTER TABLE partner ADD COLUMN IF NOT EXISTS telegram_link_code text
     NOT NULL DEFAULT gen_random_uuid()::text;

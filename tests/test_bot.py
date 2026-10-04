@@ -4,6 +4,7 @@ The code is the secret of the binding. It must work once, stop working after a
 link, and rotate without unlinking a chat that is already bound.
 """
 
+import asyncpg
 import pytest
 
 from app.modules.auth import service as auth_service
@@ -115,3 +116,48 @@ async def test_codes_are_unique_across_partners(db_conn) -> None:
     code_b = await _link_code(db_conn, b)
 
     assert code_a != code_b
+
+
+# ------------------------------------------------------- one chat, one partner
+
+
+@pytest.mark.asyncio
+async def test_chat_binds_to_one_partner_at_a_time(db_conn) -> None:
+    """A chat holding partner A's code detaches A when partner B binds it."""
+    a = await _make_partner(db_conn, "tg8a@example.com", "Отель А")
+    b = await _make_partner(db_conn, "tg8b@example.com", "Отель Б")
+    await _link(db_conn, await _link_code(db_conn, a), "555")
+
+    name_b = await _link(db_conn, await _link_code(db_conn, b), "555")
+
+    assert name_b == "Отель Б"
+    chat_a = await db_conn.fetchval("SELECT telegram_chat_id FROM partner WHERE id = $1", a)
+    chat_b = await db_conn.fetchval("SELECT telegram_chat_id FROM partner WHERE id = $1", b)
+    # A was displaced, B holds the chat now.
+    assert chat_a is None
+    assert chat_b == "555"
+
+
+@pytest.mark.asyncio
+async def test_relink_own_chat_is_idempotent(db_conn) -> None:
+    """Re-binding the same chat to the same partner does not detach it."""
+    partner_id = await _make_partner(db_conn, "tg9@example.com")
+    await _link(db_conn, await _link_code(db_conn, partner_id), "666")
+
+    # A second bind of the same chat through the rotated code keeps it.
+    await _link(db_conn, await _link_code(db_conn, partner_id), "666")
+
+    chat = await db_conn.fetchval("SELECT telegram_chat_id FROM partner WHERE id = $1", partner_id)
+    assert chat == "666"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_chat_is_rejected_by_index(db_conn) -> None:
+    """The UNIQUE index is the last line of defence: two partners, one chat."""
+    a = await _make_partner(db_conn, "tg10a@example.com")
+    b = await _make_partner(db_conn, "tg10b@example.com")
+
+    await _link(db_conn, await _link_code(db_conn, a), "777")
+    # Write B's chat directly, bypassing _link's displacement guard.
+    with pytest.raises(asyncpg.UniqueViolationError):
+        await db_conn.execute("UPDATE partner SET telegram_chat_id = '777' WHERE id = $1", b)
