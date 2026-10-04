@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 
-import { auth, getToken, setToken } from "@/api/client";
+import { auth, getToken, isAdmin, setToken } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PageShell } from "@/components/PageShell";
@@ -45,7 +45,8 @@ export function LoginPage() {
   });
 
   // Already signed in - no point showing the form.
-  if (getToken()) {
+  // A staff session is not the partner's; staff still needs this form.
+  if (getToken() && !isAdmin()) {
     return <Navigate to={from} replace />;
   }
 

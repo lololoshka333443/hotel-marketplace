@@ -41,8 +41,33 @@ import type {
 const BASE = "/v1";
 const TOKEN_KEY = "hm_access_token";
 
+/** Reads the JWT payload without verifying it — the backend re-checks every
+ * request, so this only decides which cabinet a stored token belongs in. */
+function tokenScope(token: string | null): string | null {
+  if (typeof token !== "string") return null;
+  const part = token.split(".")[1];
+  if (part === undefined) return null;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(atob(part));
+  } catch {
+    return null;
+  }
+  if (payload && typeof payload === "object" && "scope" in payload) {
+    const scope = payload.scope;
+    return typeof scope === "string" ? scope : null;
+  }
+  return null;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+/** True only for a token the backend really issued to staff. A partner token
+ * is not a staff session and must not open the admin area. */
+export function isAdmin(): boolean {
+  return tokenScope(getToken()) === "admin";
 }
 
 export function setToken(token: string | null): void {

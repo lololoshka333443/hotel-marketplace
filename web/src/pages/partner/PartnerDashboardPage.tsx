@@ -3,7 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 import { BedDouble, Building2, Plus } from "lucide-react";
 import { useState } from "react";
 
-import { partner, getToken } from "@/api/client";
+import { getToken, isAdmin, partner } from "@/api/client";
 import { humanError } from "@/utils/errors";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -28,14 +28,15 @@ export function PartnerDashboardPage() {
   const { data: properties, isPending, isError } = useQuery({
     queryKey: ["partner-properties"],
     queryFn: () => partner.listProperties(),
-    enabled: Boolean(getToken()),
+    enabled: Boolean(getToken()) && !isAdmin(),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
   const openCreate = () => setCreateOpen(true);
 
-  // The login form lives on /login; it sends the partner back here on success.
-  if (!getToken()) {
+  // A staff token is not the partner's session: staff has no properties and
+  // /partner would render an empty cabinet that looks like data loss.
+  if (!getToken() || isAdmin()) {
     return <Navigate to="/login" state={{ from: "/partner" }} replace />;
   }
   if (isPending) {

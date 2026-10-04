@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
-import { admin, getToken, setToken } from "@/api/client";
+import { admin, isAdmin, setToken } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PageShell } from "@/components/PageShell";
@@ -35,7 +35,8 @@ export function AdminLoginPage() {
       setError("Неверный email или пароль. Попробуйте ещё раз."),
   });
 
-  if (getToken()) {
+  // A partner token must not bounce staff away from their own login form.
+  if (isAdmin()) {
     return <Navigate to={from} replace />;
   }
 

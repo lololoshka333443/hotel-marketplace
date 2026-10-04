@@ -1,8 +1,7 @@
 import { Link, Outlet, Navigate, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { getToken, setToken } from "@/api/client";
-
+import { isAdmin, setToken } from "@/api/client";
 /**
  * Staff area. One token store serves both partner and admin sessions; the
  * scope is decided by which endpoint issued it (/v1/admin/login here), so the
@@ -14,7 +13,9 @@ export function AdminLayout() {
 
   // The login page lives at /admin/login (outside this layout) to avoid a
   // redirect loop; it sends staff back here on success.
-  if (!getToken()) {
+  // A partner token is a real, valid session — just not this one. Send staff
+  // to their own login; the partner keeps their cabinet.
+  if (!isAdmin()) {
     return <Navigate to="/admin/login" state={{ from: "/admin" }} replace />;
   }
 

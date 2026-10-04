@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 
-import { getToken, partner } from "@/api/client";
+import { getToken, isAdmin, partner } from "@/api/client";
 import { humanError } from "@/utils/errors";
 import type { BookingStatus } from "@/api/types";
 import { plural } from "@/utils/plural";
@@ -61,13 +61,14 @@ export function PartnerBookingsPage() {
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ["partner-bookings", filter],
     queryFn: ({ signal }) => partner.bookings.list(filter || null, signal),
-    enabled: Boolean(getToken()),
+    enabled: Boolean(getToken()) && !isAdmin(),
   });
 
   const list = data ?? [];
 
-  // The login form lives on /login; it sends the partner back here on success.
-  if (!getToken()) {
+  // A staff token is not the partner's session: the list belongs to a
+  // partner, and staff has none.
+  if (!getToken() || isAdmin()) {
     return <Navigate to="/login" state={{ from: "/partner/bookings" }} replace />;
   }
   return (

@@ -1,7 +1,7 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { getToken, setToken } from "@/api/client";
+import { getToken, isAdmin, setToken } from "@/api/client";
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ export function AppLayout() {
           <nav className="flex items-center gap-1 text-sm sm:gap-2">
             <NavLink to="/search">Номера</NavLink>
             <NavLink to="/my-booking">Моя бронь</NavLink>
-            {getToken() ? (
+            {getToken() && !isAdmin() ? (
               <>
                 <NavLink to="/partner">Кабинет</NavLink>
                 <button

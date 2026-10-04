@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { getToken, partner } from "@/api/client";
+import { getToken, isAdmin, partner } from "@/api/client";
 import { ChessBoard } from "@/components/ChessBoard";
 import { IcalExport } from "@/components/IcalExport";
 import { IcalImport } from "@/components/IcalImport";
@@ -21,15 +21,16 @@ export function PartnerCalendarPage() {
   const { data: properties } = useQuery({
     queryKey: ["partner-properties"],
     queryFn: () => partner.listProperties(),
-    enabled: Boolean(getToken()),
+    enabled: Boolean(getToken()) && !isAdmin(),
   });
 
   const list = (properties ?? []) as { id: string; name: string }[];
   const first = list[0];
   const activeId = selectedId ?? first?.id ?? null;
 
-  // The calendar is partner-only; /login sends back here on success.
-  if (!getToken()) {
+  // The calendar is partner-only; a staff token is not that session.
+  // /login sends the partner back here on success.
+  if (!getToken() || isAdmin()) {
     return (
       <Navigate to="/login" state={{ from: "/partner/calendar" }} replace />
     );
