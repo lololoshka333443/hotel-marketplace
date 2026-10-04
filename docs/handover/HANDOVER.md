@@ -67,6 +67,9 @@ PostgreSQL — источник правды, внешние площадки �
   кабинете (`AmenityPicker`), пилюли на странице объекта. API нормализует
   и на запись, и на чтение — неизвестный ключ не доезжает ни до БД, ни до
   выдачи.
+- **Telegram-бот для партнёра** — уведомления о подтверждённых бронях приходят в бот:
+  привязка одноразовым кодом из кабинета (`/start <код>`), код ротируется при каждой
+  привязке и при отвязке. `TELEGRAM_BOT_TOKEN` опционален — без него бот молча пропускается.
 
 ## Дизайн-система (менять только через генератор)
 
@@ -125,7 +128,9 @@ PostgreSQL — источник правды, внешние площадки �
   (`GET|POST /v1/partner/properties/{id}/photos`,
   `DELETE …/photos/{photo_id}`), **amenities** (`amenities` в
   `POST|PATCH /v1/partner/properties[/{id}]`, ключи из
-  `app.config.amenities`), api-keys, webhooks, iCal feed/import.
+  `app.config.amenities`), **telegram** (`GET /v1/partner/telegram`,
+  `POST …/telegram/rotate`, `DELETE …/telegram`), api-keys, webhooks,
+  iCal feed/import.
 - Админ (scope admin): login, moderation, commission reports,
   `GET /v1/admin/outbox?status=`, `POST /v1/admin/outbox/{id}/retry`,
   `GET /v1/admin/outbox/metrics`, `GET /v1/admin/reconciliation`.
@@ -139,7 +144,8 @@ PostgreSQL — источник правды, внешние площадки �
 
 ```
 cd /Users/guuu/Desktop/hotel-marketplace
-uv run python -m app.db.migrate            # 19 миграций
+uv sync --extra bot                       # зависимости + aiogram (Telegram-бот)
+uv run python -m app.db.migrate            # 20 миграций
 uv run python scripts/seed_demo.py         # partner + admin + 2 отеля
 uv run uvicorn app.main:app --port 8002    # бэк + prod-фронт из web/dist
 cd web && npm run dev                      # дев-фронт :5173, прокси /v1 → :8002 (web/.env.local)
@@ -147,7 +153,7 @@ cd web && npm run dev                      # дев-фронт :5173, прокс
 
 Гейты (все должны быть зелёные перед коммитом):
 ```
-uv run pytest tests/ -q                    # 227
+uv run pytest tests/ -q                    # 272
 uv run ruff check app tests scripts
 cd web && npx tsc -b --noEmit && npm run build
 ```
@@ -775,6 +781,35 @@ PATCH партнёром `["wifi","breakfast","bogus_key"]` → `["wifi","breakf
 Принцип: справочник в коде, данные в jsonb. Добавление удобства — это
 правка `amenities.py` (и перевод, когда i18n вытащат с дальней полки), а не
 миграция схемы.
+
+## Что сделано в этом срезе: Telegram-бот для партнёра
+
+Уведомления о подтверждённых бронях существовали в коде (`notify_booking_confirmed`
+читает `partner.telegram_chat_id`), но записать этот chat id было некому:
+колонка была, привязки не было. Бот закрывает разрыв.
+
+- `migrations/0020__partner_telegram.sql` — `telegram_link_code` (одноразовый,
+  ротируется при каждой привязке) + `telegram_linked_at`. UNIQUE-индекс на код:
+  два партнёра не могут делить код, иначе `/start` привяжет чат к чужому
+  кабинету. Индекс на chat id — путь нотификации читается индексом.
+- `app/modules/bot/__init__.py` — aiogram: `/start <код>` привязывает чат и
+  тут же ротирует код, `/help`, `/unlink` отвязывает. Polling, не вебхуки:
+  один процесс, не нужен публичный callback URL. Ошибки логируются, а не
+  роняют цикл — бот канал уведомлений, а не зависимость брони.
+- `app/modules/bot/routes.py` — `GET /v1/partner/telegram` (код + привязанный
+  чат), `POST .../telegram/rotate` (свежий код), `DELETE .../telegram`
+  (отвязка + ротация кода: старый мог быть расшарен).
+- `app/main.py` — `bot_loop` стартует в lifespan только когда задан
+  `TELEGRAM_BOT_TOKEN`; без токена warning, а не падение.
+- `web/src/components/TelegramLink.tsx` — секция в кабинете: код в readonly,
+  «Скопировать», «Обновить код», «Отключить». Привязанный чат показан с
+  подсказкой обновить код, чтобы перевесить на другой.
+
+Гейты: 272 теста (7 новых), ruff, tsc, build — чистые.
+
+Принцип: код — секрет, который партнёр копирует в бот. Кабинет не знает chat
+id до привязки, бот не знает пароля партнёра. Расшаренный скриншот раздела не
+приведёт чужой чат к чужим броням: код одноразовый.
 
 ## Бэклог (приоритет — механика сайта)
 

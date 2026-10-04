@@ -284,6 +284,13 @@ export interface WebhookOut {
   created_at: string;
 }
 
+/** The partner's Telegram binding: a one-time link code plus the bound chat. */
+export interface TelegramStatus {
+  link_code: string;
+  chat_id: string | null;
+  linked_at: string | null;
+}
+
 export interface OutboxEvent {
   id: string;
   aggregate: string;

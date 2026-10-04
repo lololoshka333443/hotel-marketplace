@@ -7,6 +7,7 @@ import { IcalExport } from "@/components/IcalExport";
 import { IcalImport } from "@/components/IcalImport";
 import { ApiKeys } from "@/components/ApiKeys";
 import { Webhooks } from "@/components/Webhooks";
+import { TelegramLink } from "@/components/TelegramLink";
 import { RateManager } from "@/components/RateManager";
 import { StopSellManager } from "@/components/StopSellManager";
 import { UnitTypeManager } from "@/components/UnitTypeManager";
@@ -86,6 +87,7 @@ export function PartnerCalendarPage() {
       )}
 
       <ApiKeys />
+      <TelegramLink />
       <Webhooks />
     </div>
   );

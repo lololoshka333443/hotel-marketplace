@@ -32,6 +32,7 @@ import type {
   PropertyPage,
   PropertyStatus,
   PropertyType,
+  TelegramStatus,
   Photo,
   TokenResponse,
   UnitTypeOut,
@@ -432,5 +433,12 @@ export const partner = {
         signal,
       });
     },
+  },
+  telegram: {
+    status: (signal?: AbortSignal) =>
+      request<TelegramStatus>("/partner/telegram", { signal }),
+    rotate: () =>
+      request<TelegramStatus>("/partner/telegram/rotate", { method: "POST" }),
+    unlink: () => request<TelegramStatus>("/partner/telegram", { method: "DELETE" }),
   },
 };

@@ -58,7 +58,9 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Run Python
-        run: uv sync
+        # The `bot` extra is not optional for the suite: tests import the
+        # Telegram module directly, so `aiogram` has to be installed here.
+        run: uv sync --extra bot
 
       # Migrations are part of the gate: a pending migration here means the
       # schema in the repo and the code have drifted apart.

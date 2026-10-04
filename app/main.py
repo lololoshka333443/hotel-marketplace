@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env)
 
     from app.jobs.reaper import reaper_loop
+    from app.modules.bot import bot_loop
     from app.modules.outbox.retention import retention_loop
     from app.modules.outbox.worker import outbox_loop, shard_groups
     from app.modules.sync.poller import import_loop
@@ -67,6 +68,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # partner's burst no longer sits in another partner's claim order.
     outbox_tasks = [asyncio.create_task(outbox_loop(group)) for group in shard_groups()]
     retention_task = asyncio.create_task(retention_loop())
+    # The bot is a notification channel, not a booking dependency: it runs only
+    # when a token exists, and its failure never stops the app.
+    bot_task = None
+    if settings.telegram_bot_token:
+        bot_task = asyncio.create_task(bot_loop(settings.telegram_bot_token))
+    else:
+        log.warning("telegram-bot-skipped", reason="TELEGRAM_BOT_TOKEN is not set")
 
     yield
 
@@ -75,11 +83,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     for task in outbox_tasks:
         task.cancel()
     retention_task.cancel()
+    if bot_task is not None:
+        bot_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await reaper_task
         await import_task
         await asyncio.gather(*outbox_tasks)
         await retention_task
+        if bot_task is not None:
+            await bot_task
 
     await close_redis()
     await close_pool()
@@ -98,6 +110,7 @@ def create_app() -> FastAPI:
     from app.modules.admin.routes import router as admin_router
     from app.modules.auth.routes import router as auth_router
     from app.modules.booking.routes import router as booking_router
+    from app.modules.bot.routes import router as bot_router
     from app.modules.channel.routes import router as channel_router
     from app.modules.inventory.routes import router as inventory_router
     from app.modules.outbox.routes import router as outbox_router
@@ -109,6 +122,7 @@ def create_app() -> FastAPI:
     from app.modules.sync.routes import router as sync_router
 
     app.include_router(auth_router)
+    app.include_router(bot_router)
     app.include_router(property_router)
     app.include_router(photo_router)
     app.include_router(unit_type_router)
