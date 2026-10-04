@@ -105,12 +105,21 @@ export function MyBookingPage() {
             </div>
           </dl>
           <div className="mt-6">
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/checkout/${booking.id}`)}
-            >
-              Перейти к бронированию
-            </Button>
+            {booking.status === "hold" || booking.status === "paid" ? (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/checkout/${booking.id}`)}
+              >
+                Перейти к оплате
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/booking/${booking.id}/success`)}
+              >
+                Открыть бронь
+              </Button>
+            )}
           </div>
         </section>
       ) : null}

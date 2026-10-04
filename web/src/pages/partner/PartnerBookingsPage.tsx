@@ -5,6 +5,8 @@ import { Navigate } from "react-router-dom";
 import { getToken, partner } from "@/api/client";
 import { humanError } from "@/utils/errors";
 import type { BookingStatus } from "@/api/types";
+import { plural } from "@/utils/plural";
+import { daysBetween } from "@/utils/date";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -46,18 +48,9 @@ function badgeVariant(status: BookingStatus) {
   }
 }
 
+/** Nights in a stay: checkout is not a night, so `[checkin, checkout)`. */
 function nights(checkin: string, checkout: string): number {
-  const a = new Date(checkin);
-  const b = new Date(checkout);
-  return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-  return many;
+  return daysBetween(checkin, checkout);
 }
 
 /** Бронирования на моих объектах. */

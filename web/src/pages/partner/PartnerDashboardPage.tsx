@@ -13,6 +13,7 @@ import { PropertyPhotos } from "@/components/PropertyPhotos";
 import { AmenityPicker } from "@/components/AmenityPicker";
 import type { PropertyOut } from "@/api/types";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { plural } from "@/utils/plural";
 
 const PROPERTY_TYPES: { value: PropertyOut["property_type"]; label: string }[] = [
   { value: "hotel", label: "Отель" },
@@ -290,12 +291,4 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       </form>
     </Modal>
   );
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-  return many;
 }

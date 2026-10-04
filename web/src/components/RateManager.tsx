@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { partner } from "@/api/client";
 import type { RatePlan, UnitTypeOut } from "@/api/types";
 import { humanError } from "@/utils/errors";
+import { plural } from "@/utils/plural";
+import { daysBetween } from "@/utils/date";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -234,16 +236,3 @@ function addDays(iso: string, delta: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function daysBetween(from: string, to: string): number {
-  const a = new Date(from + "T00:00:00").getTime();
-  const b = new Date(to + "T00:00:00").getTime();
-  return Math.round((b - a) / 86_400_000);
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-  return many;
-}

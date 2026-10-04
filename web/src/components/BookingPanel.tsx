@@ -4,10 +4,10 @@ import { useNavigate } from "react-router-dom";
 
 import { bookings, availability } from "@/api/client";
 import { humanError } from "@/utils/errors";
+import { plural } from "@/utils/plural";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { AvailabilityDay } from "@/api/types";
-
 interface BookingPanelProps {
   unitTypeId: string;
   currency: string;
@@ -193,10 +193,3 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function plural(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-  return many;
-}
