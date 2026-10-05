@@ -82,17 +82,15 @@ async def create_webhook(
     try:
         row = await conn.fetchrow(
             """
-            INSERT INTO webhook_subscription (partner_id, url, event_types, secret, secret_sealed)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO webhook_subscription (partner_id, url, event_types, secret_sealed)
+            VALUES ($1, $2, $3, $4)
             RETURNING id::text, url, event_types, enabled, created_at
             """,
             token.sub,
             data.url,
             data.event_types,
-            data.secret,
             seal_secret(data.secret),
         )
-        assert row is not None
         return dict(row)
     finally:
         await get_pool().release(conn)

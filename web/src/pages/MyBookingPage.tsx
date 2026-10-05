@@ -27,12 +27,16 @@ export function MyBookingPage() {
   const [code, setCode] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null);
 
+  // `isPending` stays true while the query is disabled (no submitted code),
+  // and the spinner on a button the guest cannot press yet reads as a stuck
+  // page. Only a fetch in flight is a loading state.
   const { data: booking, isPending, isError } = useQuery({
     queryKey: ["booking-by-code", submitted],
     queryFn: ({ signal }) => bookings.byCode(submitted as string, signal),
     enabled: submitted !== null,
     retry: false,
   });
+  const looking = submitted !== null && isPending;
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -73,7 +77,7 @@ export function MyBookingPage() {
             }
           />
         </div>
-        <Button type="submit" loading={isPending} disabled={!code.trim()}>
+        <Button type="submit" loading={looking} disabled={!code.trim()}>
           Найти
         </Button>
       </form>
