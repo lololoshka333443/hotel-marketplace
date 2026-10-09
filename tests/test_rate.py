@@ -220,3 +220,81 @@ async def test_calendar_marks_ungenerated_day_as_closed(db_conn) -> None:
     for day in unit["days"]:
         assert day["closed"] is True
         assert day["free"] == 0
+
+
+# ------------------------------------------------------- commission on a plan
+
+
+@pytest.mark.asyncio
+async def test_rate_plan_commission_override(db_conn) -> None:
+    """A rate plan with a commission rate beats the platform default."""
+    from app.config import legal
+
+    seed = await _seed(db_conn, "r11@example.com")
+    await service.create_rate_plan(db_conn, seed["unit_type_id"], "Летний")
+    plan_id = await db_conn.fetchval(
+        "SELECT id::text FROM rate_plan WHERE unit_type_id = $1", seed["unit_type_id"]
+    )
+    updated = await service.update_rate_plan(db_conn, plan_id, 0.20)
+    assert updated["commission_rate"] == 0.20
+
+    # get_effective_rate returns the override, not the 12% default.
+    found, rate = await service.get_effective_rate(db_conn, seed["unit_type_id"])
+    assert found == plan_id
+    assert rate == 0.20
+    assert rate != legal.COMMISSION_DEFAULT_RATE
+
+
+@pytest.mark.asyncio
+async def test_rate_plan_commission_null_falls_back(db_conn) -> None:
+    """A plan without a rate falls back to the platform default."""
+    from app.config import legal
+
+    seed = await _seed(db_conn, "r12@example.com")
+    await service.create_rate_plan(db_conn, seed["unit_type_id"], "Гибкий")
+
+    found, rate = await service.get_effective_rate(db_conn, seed["unit_type_id"])
+    assert rate == legal.COMMISSION_DEFAULT_RATE
+    assert found is not None
+
+
+@pytest.mark.asyncio
+async def test_no_rate_plan_uses_default(db_conn) -> None:
+    """No rate plan at all: the default still applies, and the source is None."""
+    from app.config import legal
+
+    seed = await _seed(db_conn, "r13@example.com")
+    found, rate = await service.get_effective_rate(db_conn, seed["unit_type_id"])
+    assert rate == legal.COMMISSION_DEFAULT_RATE
+    assert found is None
+
+
+@pytest.mark.asyncio
+async def test_clearing_commission_returns_to_default(db_conn) -> None:
+    """null clears the override back to the platform default."""
+    from app.config import legal
+
+    seed = await _seed(db_conn, "r14@example.com")
+    await service.create_rate_plan(db_conn, seed["unit_type_id"], "Летний")
+    plan_id = await db_conn.fetchval(
+        "SELECT id::text FROM rate_plan WHERE unit_type_id = $1", seed["unit_type_id"]
+    )
+    await service.update_rate_plan(db_conn, plan_id, 0.25)
+    await service.update_rate_plan(db_conn, plan_id, None)
+
+    row = await db_conn.fetchrow("SELECT commission_rate FROM rate_plan WHERE id = $1", plan_id)
+    assert row["commission_rate"] is None
+    _, rate = await service.get_effective_rate(db_conn, seed["unit_type_id"])
+    assert rate == legal.COMMISSION_DEFAULT_RATE
+
+
+@pytest.mark.asyncio
+async def test_commission_rate_out_of_range_rejected(db_conn) -> None:
+    """A share is 0..1; anything else is a programming error."""
+    seed = await _seed(db_conn, "r15@example.com")
+    await service.create_rate_plan(db_conn, seed["unit_type_id"], "Летний")
+    plan_id = await db_conn.fetchval(
+        "SELECT id::text FROM rate_plan WHERE unit_type_id = $1", seed["unit_type_id"]
+    )
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        await service.update_rate_plan(db_conn, plan_id, 1.5)

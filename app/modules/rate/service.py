@@ -11,6 +11,7 @@ import datetime as dt
 
 import asyncpg
 
+from app.config import legal
 from app.utils.logger import get_logger
 from app.utils.redis import get_redis
 
@@ -30,7 +31,8 @@ async def create_rate_plan(
         """
         INSERT INTO rate_plan (unit_type_id, name, cancellation_policy)
         VALUES ($1, $2, $3)
-        RETURNING id::text, unit_type_id::text, name, cancellation_policy, active
+        RETURNING id::text, unit_type_id::text, name, cancellation_policy,
+                  active, commission_rate::float8
         """,
         unit_type_id,
         name,
@@ -42,8 +44,11 @@ async def create_rate_plan(
 
 async def list_rate_plans(conn: asyncpg.Connection, unit_type_id: str) -> list[dict]:
     rows = await conn.fetch(
-        "SELECT id::text, unit_type_id::text, name, cancellation_policy, active "
-        "FROM rate_plan WHERE unit_type_id = $1 ORDER BY created_at",
+        """
+        SELECT id::text, unit_type_id::text, name, cancellation_policy, active,
+               commission_rate::float8
+        FROM rate_plan WHERE unit_type_id = $1 ORDER BY created_at
+        """,
         unit_type_id,
     )
     return [dict(r) for r in rows]
@@ -148,6 +153,62 @@ async def get_prices(
         date_to,
     )
     return [dict(r) for r in rows]
+
+
+async def get_effective_rate(
+    conn: asyncpg.Connection,
+    unit_type_id: str,
+) -> tuple[str | None, float]:
+    """Commission share that applies to a unit type, with its source.
+
+    An active rate plan carrying ``commission_rate`` wins; otherwise the
+    platform default from ``app.config.legal``. Returns the rate plan id (None
+    when the default applied) so the caller can report which rule priced the
+    booking, the same way prices report their plan.
+    """
+    row = await conn.fetchrow(
+        """
+        SELECT rp.id::text, rp.commission_rate::float8
+        FROM rate_plan rp
+        WHERE rp.unit_type_id = $1 AND rp.active
+        ORDER BY rp.created_at
+        LIMIT 1
+        """,
+        unit_type_id,
+    )
+    if row is not None and row["commission_rate"] is not None:
+        return row["id"], row["commission_rate"]
+    return (row["id"] if row is not None else None), legal.COMMISSION_DEFAULT_RATE
+
+
+async def update_rate_plan(
+    conn: asyncpg.Connection,
+    rate_plan_id: str,
+    commission_rate: float | None,
+) -> dict:
+    """Set the commission share of a rate plan.
+
+    ``None`` clears the override and falls the unit type back to the platform
+    default. The rate is read at hold time and snapshotted on the booking, so
+    this never reprices a booking already confirmed.
+    """
+    if commission_rate is not None and not (0 <= commission_rate <= 1):
+        raise ValueError("commission_rate must be between 0 and 1")
+
+    row = await conn.fetchrow(
+        """
+        UPDATE rate_plan
+           SET commission_rate = $2
+         WHERE id = $1
+        RETURNING id::text, unit_type_id::text, name, cancellation_policy,
+                  active, commission_rate::float8
+        """,
+        rate_plan_id,
+        commission_rate,
+    )
+    if row is None:
+        raise KeyError(rate_plan_id)
+    return dict(row)
 
 
 async def get_effective_price(conn: asyncpg.Connection, rate_plan_id: str, date: dt.date) -> float:

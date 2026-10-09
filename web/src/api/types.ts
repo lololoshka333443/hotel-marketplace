@@ -152,13 +152,19 @@ export interface UnitTypeOut {
   cancellation_policy?: string | null;
 }
 
-/** A rate plan: the price schedule of one unit type. */
+/**
+ * A rate plan: the price schedule of one unit type.
+ *
+ * `commission_rate` is the platform's share of the nights this plan prices;
+ * `null` means the platform default applies.
+ */
 export interface RatePlan {
   id: string;
   unit_type_id: string;
   name: string;
   cancellation_policy: string;
   active: boolean;
+  commission_rate?: number | null;
 }
 
 export interface GuestInfo {

@@ -454,3 +454,49 @@ async def test_hold_mixes_priced_and_unpriced_nights(db_conn) -> None:
     )
 
     assert hold["total_amount"] == seasonal * 2 + base
+
+
+# --------------------------------------------------- commission from the plan
+
+
+@pytest.mark.asyncio
+async def test_hold_snapshots_plan_commission(db_conn) -> None:
+    """The rate plan's commission share is snapshotted on the booking.
+
+    A later change to the plan must not reprice a booking already confirmed,
+    so the rate is read at hold time and written onto the row.
+    """
+    from app.modules.rate import service as rate_service
+
+    ut = await _seed_unit(db_conn, "b20@example.com")
+    await rate_service.create_rate_plan(db_conn, ut, "Летний")
+    plan_id = await db_conn.fetchval("SELECT id::text FROM rate_plan WHERE unit_type_id = $1", ut)
+    await rate_service.update_rate_plan(db_conn, plan_id, 0.20)
+
+    hold = await service.create_hold(
+        db_conn, unit_type_id=ut, checkin=TODAY, checkout=TODAY + dt.timedelta(days=2), **_guest()
+    )
+
+    row = await db_conn.fetchrow(
+        "SELECT commission_rate::float8, commission_amt::float8 FROM booking WHERE id = $1",
+        hold["id"],
+    )
+    # 2 nights x 3000 = 6000, at 20%.
+    assert row["commission_rate"] == 0.20
+    assert row["commission_amt"] == 1200
+
+
+@pytest.mark.asyncio
+async def test_hold_without_plan_uses_default_commission(db_conn) -> None:
+    """No rate plan: the platform default is snapshotted instead."""
+    from app.config import legal
+
+    ut = await _seed_unit(db_conn, "b21@example.com")
+    hold = await service.create_hold(
+        db_conn, unit_type_id=ut, checkin=TODAY, checkout=TODAY + dt.timedelta(days=2), **_guest()
+    )
+
+    rate = await db_conn.fetchval(
+        "SELECT commission_rate::float8 FROM booking WHERE id = $1", hold["id"]
+    )
+    assert rate == legal.COMMISSION_DEFAULT_RATE

@@ -16,8 +16,8 @@ import secrets
 
 import asyncpg
 
-from app.config import legal
 from app.config.settings import settings
+from app.modules.rate import service as rate_service
 from app.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -183,7 +183,11 @@ async def create_hold(
     priced = await _night_prices(conn, unit_type_id, checkin, checkout)
     night_prices = [price for _, price in priced]
     total = round(sum(night_prices), 2)
-    commission = round(total * legal.COMMISSION_DEFAULT_RATE, 2)
+    # The rate plan's commission share wins; without one the platform default
+    # applies. Snapshotted here so a later change to the plan never reprices a
+    # booking that is already confirmed.
+    _plan_id, commission_rate = await rate_service.get_effective_rate(conn, unit_type_id)
+    commission = round(total * commission_rate, 2)
 
     hold_expires_at = dt.datetime.now(dt.UTC) + dt.timedelta(minutes=settings.hold_ttl_min)
     code = _make_code()
@@ -209,7 +213,7 @@ async def create_hold(
         checkin,
         checkout,
         total,
-        legal.COMMISSION_DEFAULT_RATE,
+        commission_rate,
         commission,
         hold_expires_at,
         origin,

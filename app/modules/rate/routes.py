@@ -28,6 +28,17 @@ class SetPricesRequest(BaseModel):
     min_stay: int = Field(default=1, ge=1)
 
 
+class RatePlanPatch(BaseModel):
+    """Change the commission share of a rate plan.
+
+    ``null`` clears the override so the unit type falls back to the platform
+    default. Only the commission is patchable: the plan's name and policy are
+    set at creation, and its prices have their own endpoint.
+    """
+
+    commission_rate: float | None = Field(default=None, ge=0, le=1)
+
+
 @router.post("/partner/rate-plans", status_code=status.HTTP_201_CREATED)
 async def create_rate_plan(
     data: RatePlanCreate,
@@ -58,6 +69,42 @@ async def list_rate_plans(
     conn = await get_pool().acquire()
     try:
         return await service.list_rate_plans(conn, unit_type_id)
+    finally:
+        await get_pool().release(conn)
+
+
+@router.patch("/partner/rate-plans/{rate_plan_id}")
+async def patch_rate_plan(
+    rate_plan_id: str,
+    data: RatePlanPatch,
+    token: Annotated[TokenData, Depends(require_scope("partner"))],
+) -> dict:
+    """Set the commission share of a rate plan.
+
+    A booking snapshots the rate at hold time, so this only affects stays
+    booked after the change.
+    """
+    conn = await get_pool().acquire()
+    try:
+        owned = await conn.fetchval(
+            "SELECT 1 FROM rate_plan rp JOIN unit_type ut ON ut.id = rp.unit_type_id "
+            "JOIN property p ON p.id = ut.property_id "
+            "WHERE rp.id = $1 AND p.partner_id = $2",
+            rate_plan_id,
+            token.sub,
+        )
+        if not owned:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="rate plan not found")
+        try:
+            return await service.update_rate_plan(conn, rate_plan_id, data.commission_rate)
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="rate plan not found"
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
     finally:
         await get_pool().release(conn)
 

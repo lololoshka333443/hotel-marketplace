@@ -119,6 +119,7 @@ async def list_public_properties(
     finally:
         await get_pool().release(conn)
 
+
 @router.get("/properties/{property_id}", response_model=dict)
 async def get_public_property(property_id: str) -> dict:
     conn = await get_pool().acquire()

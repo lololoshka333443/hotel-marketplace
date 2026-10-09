@@ -1191,9 +1191,7 @@ async def test_amenity_filter_ignores_keys_the_catalog_dropped(db_conn) -> None:
             amenities=["wifi", "washer"],
         ),
     )
-    await service.update_property(
-        db_conn, prop.id, partner_id, PropertyUpdate(status="published")
-    )
+    await service.update_property(db_conn, prop.id, partner_id, PropertyUpdate(status="published"))
 
     # Only unknown keys: nothing recognisable is being asked for, and
     # returning everything would ignore the guest entirely.
@@ -1201,9 +1199,7 @@ async def test_amenity_filter_ignores_keys_the_catalog_dropped(db_conn) -> None:
     assert only_unknown["total"] == 0
 
     # An unknown key riding along does not disable the known one.
-    mixed = await service.list_public_properties(
-        db_conn, amenities=["wifi", "retired_key"]
-    )
+    mixed = await service.list_public_properties(db_conn, amenities=["wifi", "retired_key"])
     assert [p["id"] for p in mixed["items"]] == [prop.id]
 
     # But a real key the property lacks still excludes it.
@@ -1269,4 +1265,3 @@ async def test_amenity_filter_reaches_guests_over_http(committed_conn) -> None:
         page = client.get("/v1/properties?amenities=wifi&amenities=pool")
         assert page.status_code == 200, page.text
         assert [p["id"] for p in page.json()["items"]] == [both.id]
-
