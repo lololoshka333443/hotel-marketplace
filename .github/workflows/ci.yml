@@ -49,7 +49,8 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       # The webhook seal key has to exist for subscription creation to succeed;
       # CI owns no real secrets, so a generated one is fine.
-      WEBHOOK_SEAL_KEY: ${{ secrets.WEBHOOK_SEAL_KEY || 'ci-only-seal-key-not-a-real-secret' }}
+      # Valid Fernet-format test key; CI must not use a production key.
+      WEBHOOK_SEAL_KEY: ${{ secrets.WEBHOOK_SEAL_KEY || 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -62,8 +63,12 @@ jobs:
         # Telegram module directly, so `aiogram` has to be installed here.
         run: uv sync --extra bot
 
-      # Migrations are part of the gate: a pending migration here means the
-      # schema in the repo and the code have drifted apart.
+      # Start from the empty database provided by the service container.
+      - name: Apply migrations
+        run: uv run python -m app.db.migrate
+
+      # Keep the drift check: it must be clean after all committed migrations
+      # have been applied successfully.
       - name: Check for pending migrations
         run: uv run python -m app.db.migrate --check
 
