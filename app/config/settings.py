@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     # How often the outbox worker claims a batch. Exposed for tests.
     outbox_poll_interval_sec: int = Field(default=15)
 
+    # ----- Public endpoints that take guesses -----
+    # Attempts per client address per window; one account or booking code gets
+    # 3x that across all addresses (app/utils/ratelimit_http.py). Raise them if
+    # many users legitimately share an address; 0 blocks the endpoint outright.
+    login_limit_per_min: int = Field(default=10)
+    register_limit_per_min: int = Field(default=5)
+    lookup_limit_per_min: int = Field(default=10)
+
     # ----- Outbox backlog limit -----
     # A mass operation (bulk price load, an iCal import of a whole season) can
     # throw thousands of events at the queue; the worker drains it at
