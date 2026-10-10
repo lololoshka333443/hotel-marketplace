@@ -19,6 +19,7 @@ import httpx
 from app.config.settings import settings
 from app.modules.sync.ical_parser import IcalParseError, expand_dates, parse_calendar
 from app.utils.logger import get_logger
+from app.utils.netguard import GUARD_HOOKS
 
 log = get_logger(__name__)
 
@@ -47,7 +48,7 @@ async def sync_subscription(conn: asyncpg.Connection, subscription_id: str) -> d
     try:
         text = await _fetch(sub["url"])
         events = parse_calendar(text)
-    except (httpx.HTTPError, IcalParseError, ValueError) as exc:
+    except (httpx.HTTPError, httpx.InvalidURL, IcalParseError, ValueError) as exc:
         await _mark(conn, sub["id"], "error", str(exc)[:500], 0)
         log.warning("ical-import-failed", subscription_id=sub["id"], error=str(exc))
         return {"status": "error", "error": str(exc)}
@@ -184,7 +185,10 @@ async def list_due(conn: asyncpg.Connection, limit: int = 25) -> list[str]:
 
 async def _fetch(url: str) -> str:
     async with httpx.AsyncClient(
-        timeout=FETCH_TIMEOUT_SEC, follow_redirects=True, max_redirects=3
+        timeout=FETCH_TIMEOUT_SEC,
+        follow_redirects=True,
+        max_redirects=3,
+        event_hooks=GUARD_HOOKS,
     ) as client:
         response = await client.get(url, headers={"User-Agent": USER_AGENT})
         response.raise_for_status()
